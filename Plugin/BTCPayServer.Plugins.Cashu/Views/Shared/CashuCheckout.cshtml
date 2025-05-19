@@ -1,0 +1,67 @@
+@model BTCPayServer.Models.InvoicingModels.CheckoutModel
+<template id="@CashuCheckoutModelExtension.CheckoutBodyComponentName">
+    <div class="payment-box">
+        <div v-if="model.invoiceBitcoinUrlQR" class="qr-container" :data-qr-value="model.invoiceBitcoinUrlQR" :data-clipboard="model.invoiceBitcoinUrl" data-clipboard-confirm-element="#Address_@Model.PaymentMethodId [data-clipboard]">
+            <div>
+                <qrcode :value="model.invoiceBitcoinUrlQR" tag="div" :options="qrOptions"/>
+            </div>
+            <img class="qr-icon" :src="model.cryptoImage" :alt="model.paymentMethodName"/>
+        </div>
+        <div class="separator">
+            <span>OR</span>
+        </div>
+        <form id="payByTokenForm" method="POST"
+              :action="pastedTokenPaymentUrl">
+            <input type="hidden" name="invoiceId" value="@Model.InvoiceId"/>
+            <input type="hidden" name="returnUrl"  value="/i/@Model.InvoiceId"/>
+            <input type="hidden" name="storeId" value="@Model.StoreId"/>
+            <input type="text" name="token" autofocus="autofocus" class="rounded-pill w-100 btn border-white" placeholder="Enter your cashu token..."/>
+            <Button id="payButton" class="btn btn-primary rounded-pill w-100 mt-3">Pay</Button>
+            <p>Merchant will receive full token worth. No change will be withdrawn.</p>
+        </form>
+        
+    </div>
+</template>
+
+<script>
+    Vue.component(@Safe.Json(CashuCheckoutModelExtension.CheckoutBodyComponentName), {
+        props: ['model'],
+        template: @Safe.Json("#" + CashuCheckoutModelExtension.CheckoutBodyComponentName),
+        components: {
+            qrcode: VueQrcode
+        },
+        data () {
+            return {
+                currentTab: undefined,
+                //FIXME: it SHOULD be in the model, but there's already more important payment request. Maybe use AdditionalData dictioanary?
+                pastedTokenPaymentUrl: '/stores/' + this.model.StoreId + '/cashu/PayInvoice'
+            };
+            
+        }
+    });
+</script>
+
+
+<style>
+    .separator {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: 20px 0;
+    }
+
+    .separator::before,
+    .separator::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #ccc;
+    }
+
+    .separator::before {
+        margin-right: 10px;
+    }
+
+    .separator::after {
+        margin-left: 10px;
+    }
+</style>

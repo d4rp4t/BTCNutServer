@@ -1,0 +1,81 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BTCPay", "BTCPay", "{C6B378F2-1A1C-4A83-94FA-501EB8005B67}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer", "submodules\btcpayserver\BTCPayServer\BTCPayServer.csproj", "{1FB1F662-859A-4C6B-9A94-855BBE1B7520}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Abstractions", "submodules\btcpayserver\BTCPayServer.Abstractions\BTCPayServer.Abstractions.csproj", "{9352CFBB-2221-447D-B79A-9064FFBF49D3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Common", "submodules\btcpayserver\BTCPayServer.Common\BTCPayServer.Common.csproj", "{B45FBA97-2820-48DB-B83E-3B57CD7960C3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Client", "submodules\btcpayserver\BTCPayServer.Client\BTCPayServer.Client.csproj", "{7C5D7C36-C63A-4862-8267-97FCAD555B9C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Data", "submodules\btcpayserver\BTCPayServer.Data\BTCPayServer.Data.csproj", "{8A6619FC-5E7C-44C0-A67F-6C6F166629D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Rating", "submodules\btcpayserver\BTCPayServer.Rating\BTCPayServer.Rating.csproj", "{1AB37247-BAB6-443B-8801-6DF7EBCE7908}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Tests", "submodules\btcpayserver\BTCPayServer.Tests\BTCPayServer.Tests.csproj", "{101DB525-A949-44C8-B17A-26CFF52B1B6F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayserver.Plugins.Cashu.Tests", "BTCPayserver.Plugins.Cashu.Tests\BTCPayserver.Plugins.Cashu.Tests.csproj", "{088E33C2-483F-4978-B1B9-36E506B9193C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConfigBuilder", "ConfigBuilder\ConfigBuilder.csproj", "{DAD0EE16-21D0-445E-AF09-2ECA39F75E5B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Plugins.Cashu", "Plugin\BTCPayServer.Plugins.Cashu\BTCPayServer.Plugins.Cashu.csproj", "{528FBD72-B75C-4192-9F4A-EECAEA36BE86}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1FB1F662-859A-4C6B-9A94-855BBE1B7520}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1FB1F662-859A-4C6B-9A94-855BBE1B7520}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1FB1F662-859A-4C6B-9A94-855BBE1B7520}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1FB1F662-859A-4C6B-9A94-855BBE1B7520}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9352CFBB-2221-447D-B79A-9064FFBF49D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9352CFBB-2221-447D-B79A-9064FFBF49D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9352CFBB-2221-447D-B79A-9064FFBF49D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9352CFBB-2221-447D-B79A-9064FFBF49D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B45FBA97-2820-48DB-B83E-3B57CD7960C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B45FBA97-2820-48DB-B83E-3B57CD7960C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B45FBA97-2820-48DB-B83E-3B57CD7960C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B45FBA97-2820-48DB-B83E-3B57CD7960C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C5D7C36-C63A-4862-8267-97FCAD555B9C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C5D7C36-C63A-4862-8267-97FCAD555B9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C5D7C36-C63A-4862-8267-97FCAD555B9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C5D7C36-C63A-4862-8267-97FCAD555B9C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A6619FC-5E7C-44C0-A67F-6C6F166629D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A6619FC-5E7C-44C0-A67F-6C6F166629D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A6619FC-5E7C-44C0-A67F-6C6F166629D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A6619FC-5E7C-44C0-A67F-6C6F166629D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1AB37247-BAB6-443B-8801-6DF7EBCE7908}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1AB37247-BAB6-443B-8801-6DF7EBCE7908}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AB37247-BAB6-443B-8801-6DF7EBCE7908}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1AB37247-BAB6-443B-8801-6DF7EBCE7908}.Release|Any CPU.Build.0 = Release|Any CPU
+		{101DB525-A949-44C8-B17A-26CFF52B1B6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{101DB525-A949-44C8-B17A-26CFF52B1B6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{101DB525-A949-44C8-B17A-26CFF52B1B6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{101DB525-A949-44C8-B17A-26CFF52B1B6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{088E33C2-483F-4978-B1B9-36E506B9193C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{088E33C2-483F-4978-B1B9-36E506B9193C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{088E33C2-483F-4978-B1B9-36E506B9193C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{088E33C2-483F-4978-B1B9-36E506B9193C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DAD0EE16-21D0-445E-AF09-2ECA39F75E5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DAD0EE16-21D0-445E-AF09-2ECA39F75E5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DAD0EE16-21D0-445E-AF09-2ECA39F75E5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DAD0EE16-21D0-445E-AF09-2ECA39F75E5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{528FBD72-B75C-4192-9F4A-EECAEA36BE86}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{528FBD72-B75C-4192-9F4A-EECAEA36BE86}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{528FBD72-B75C-4192-9F4A-EECAEA36BE86}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{528FBD72-B75C-4192-9F4A-EECAEA36BE86}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1FB1F662-859A-4C6B-9A94-855BBE1B7520} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+		{9352CFBB-2221-447D-B79A-9064FFBF49D3} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+		{B45FBA97-2820-48DB-B83E-3B57CD7960C3} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+		{7C5D7C36-C63A-4862-8267-97FCAD555B9C} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+		{8A6619FC-5E7C-44C0-A67F-6C6F166629D4} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+		{1AB37247-BAB6-443B-8801-6DF7EBCE7908} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+		{101DB525-A949-44C8-B17A-26CFF52B1B6F} = {C6B378F2-1A1C-4A83-94FA-501EB8005B67}
+	EndGlobalSection
+EndGlobal

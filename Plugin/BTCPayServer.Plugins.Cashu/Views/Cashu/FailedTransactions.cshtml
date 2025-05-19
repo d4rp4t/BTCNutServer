@@ -1,0 +1,37 @@
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Plugins.Cashu
+@using BTCPayServer.Plugins.Cashu.Data.Models
+@model List<BTCPayServer.Plugins.Cashu.Data.Models.FailedTransaction>
+@{
+    ViewData.SetActivePage(CashuPlugin.PluginNavKey, "Interrupted Transactions", "Configuration");
+}
+
+<h2 class="mb-2 mb-lg-3">@ViewData["Title"]</h2>
+<partial name="_StatusMessage" />
+
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead class="table-light">
+        <td>InvoiceId</td>
+        <td>Mint Url</td>
+        <td>Unit</td>
+        <td>Proof Amount</td>
+        <td>Operation</td>
+        <td> </td>
+        </thead>
+        @foreach(var item in Model)
+        {
+            <form method="POST">
+                <input type="hidden" name="FailedTransactionID" value="@item.Id">
+                <tr>
+                    <td>@item.Id</td>
+                    <td>@item.MintUrl</td>
+                    <td>@item.Unit</td>
+                    <td>@item.UsedProofs.Count</td>
+                    <td>@(item.OperationType==OperationType.Swap?"Swap":"Melt")</td>
+                    <td><button type="submit" class="btn btn-link p-0">Poll</button><td>
+                </tr>
+            </form>
+        }
+    </table>
+</div>

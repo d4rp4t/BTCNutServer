@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <LangVersion>12</LangVersion>
+        <RootNamespace>BTCPayServer.Plugins.Cashu</RootNamespace>
+    </PropertyGroup>
+
+    <!-- Plugin specific properties -->
+    <PropertyGroup>
+        <Product>BTCNutServer</Product>
+        <Description>Enables trustless Cashu eCash payments in BTCPay Server. Early beta, don't be reckless.</Description>
+        <Version>0.0.1</Version>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+    <!-- Plugin development properties -->
+    <PropertyGroup>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+        <PreserveCompilationContext>false</PreserveCompilationContext>
+        <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    </PropertyGroup>
+
+    <!-- This will make sure that referencing BTCPayServer doesn't put any artifact in the published directory -->
+    <ItemDefinitionGroup>
+        <ProjectReference>
+            <Properties>StaticWebAssetsEnabled=false</Properties>
+            <Private>false</Private>
+            <ExcludeAssets>runtime;native;build;buildTransitive;contentFiles</ExcludeAssets>
+        </ProjectReference>
+    </ItemDefinitionGroup>
+
+
+    <!-- This is all so that we can generate entity framework migrations in design mode
+    <Target Name="PrepareEntityFrameworkMigrationDependency" BeforeTargets="BeforeBuild">
+        <Copy SourceFiles="..\..\submodules\btcpayserver\BTCPayServer\bin\Debug\net8.0\BTCPayServer.dll"
+              DestinationFolder="$(OutputPath)"
+              Condition="'$(Configuration)' == 'Debug'" />
+        <Copy SourceFiles="..\..\submodules\btcpayserver\BTCPayServer.Abstractions\bin\Debug\net8.0\BTCPayServer.Abstractions.dll"
+              DestinationFolder="$(OutputPath)"
+              Condition="'$(Configuration)' == 'Debug'" />
+    </Target>
+     -->
+
+    <ItemGroup Condition="'$(Configuration)' != 'Release'">
+        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.10.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.10.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\submodules\btcpayserver\BTCPayServer\BTCPayServer.csproj" />
+        <EmbeddedResource Include="Resources\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Data\Migrations\" />
+        <Folder Include="Screenshots\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BTCPayServer.Lightning.All" Version="1.6.9" />
+        <PackageReference Include="DotNut" Version="1.0.3" />
+    </ItemGroup>
+
+</Project>
+

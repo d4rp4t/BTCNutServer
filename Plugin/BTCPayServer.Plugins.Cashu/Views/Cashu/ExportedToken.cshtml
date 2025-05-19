@@ -1,0 +1,69 @@
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Abstractions.TagHelpers
+@using BTCPayServer.Plugins.Cashu
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model BTCPayServer.Plugins.Cashu.ViewModels.ExportedTokenViewModel
+@{
+    ViewData.SetActivePage(CashuPlugin.PluginNavKey, "Exporting token...", "Configuration");
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7 col-md-9">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="mb-4 text-center">Exported Token</h2>
+                    <div class="d-flex flex-column align-items-center mb-4 qrcode-container">
+                        <canvas id="qrcode" style="max-width: 240px; width: 100%; height: auto;"></canvas>
+                        <div class="invisible" id="token-dummy-div" data-token="@Model.Token"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold" for="tokenValue">Token</label>
+                        <div class="input-group">
+                            <input id="tokenValue" class="form-control font-monospace" value="@Model.Token" readonly autocomplete="off" spellcheck="false" style="background: #f8f9fa;">
+                            <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('tokenValue').value)">
+                                Copy
+                            </button>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item px-0 py-2"><strong>Amount:</strong> @Model.Amount</li>
+                        <li class="list-group-item px-0 py-2"><strong>Currency:</strong> @Model.Unit</li>
+                        <li class="list-group-item px-0 py-2"><strong>Mint Address:</strong> <span class="font-monospace">@Model.MintAddress</span></li>
+                    </ul>
+                    <div class="alert alert-info small mb-0">
+                        <strong>Keep your token safe!</strong> Anyone with this token can spend it.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .card {
+        border-radius: 1rem;
+    }
+
+    .input-group .form-control {
+        border-right: 0;
+    }
+
+    .input-group .btn {
+        border-left: 0;
+    }
+
+    .font-monospace {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    @@media (max-width: 576px) {
+    .card {
+        border-radius: .5rem;
+    }
+    .input-group .form-control {
+        font-size: 0.95rem;
+    }
+    }
+
+</style>
+<script type="module" src="~/Resources/js/bundle.js" asp-append-version="true" />

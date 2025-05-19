@@ -1,0 +1,140 @@
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Plugins.Cashu
+@using BTCPayServer.Plugins.Cashu.CashuAbstractions
+@using BTCPayServer.Plugins.Cashu.Data.enums
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@model BTCPayServer.Plugins.Cashu.ViewModels.CashuWalletViewModel
+
+@{
+    ViewData.SetActivePage(CashuPlugin.PluginNavKey, "Cashu Wallet", "CashuWallet");
+}
+
+<h2 class="mb-2 mb-lg-3">@ViewData["Title"]</h2>
+<div>
+<partial name="_StatusMessage" />
+
+    <div class="d-flex flex-column ">
+    <div class="row">
+        <div class="col-xl-8">
+            <div class="d-flex flex-wrap gap-3 mb-4 w-100">
+                <div class="bg-tile p-3 rounded w-100">
+                    <h5 class="mb-2">Total Balance</h5>
+                    @foreach (var balance in Model.GroupedBalances)
+                    {
+                        <div class="d-flex align-items-baseline gap-2">
+                            <span class="h3">@balance.Amount</span>
+                            <span class="text-secondary">@balance.Unit</span>
+                        </div>
+                    }
+                    
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Mint</th>
+                        <th class="text-end">Amount</th>
+                        <th>Unit</th>
+                        <th> </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    
+                    @foreach (var item in @Model.AvaibleBalances)
+                    {
+                        <tr>
+
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <vc:icon symbol="wallet"/>
+                                    <span class="text-truncate">@item.Mint</span>
+                                </div>
+                            </td>
+                            <td class="text-end">@item.Amount</td>
+                            <td>@item.Unit</td>
+                            <td>
+                                <form method="post" action="ExportMintBalance">
+                                    <input type="hidden" name="mintUrl" value="@item.Mint"/>
+                                    <input type="hidden" name="unit" value="@item.Unit"/>
+
+                                    <button type="submit"
+                                            class="btn btn-link p-0"
+                                            name="action"
+                                            value="@WalletAction.SendToken">
+                                        Export Token
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 pt-4 border-top">
+                <h4 class="mb-3">Exported Tokens History</h4>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Mint</th>
+                            <th class="text-end">Amount</th>
+                            <th>Unit</th>
+                            <th>Status</th>
+                            <th style="width: 80px;"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in Model.ExportedTokens)
+                        {
+                            <tr>
+                                <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>
+                                    <span class="text-truncate d-inline-block" style="max-width: 200px;">@item.Mint</span>
+                                </td>
+                                <td class="text-end">@item.Amount</td>
+                                <td>@item.Unit</td>
+                                <td>
+                                    <span class="badge @(item.IsUsed ? "bg-secondary" : "bg-warning")">
+                                        @(item.IsUsed ? "Spent" : "Pending")
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="@Url.Action("ExportedToken", new { tokenId = item.Id })" class="btn btn-link p-0">Show</a>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<style>
+    .table td, .table th {
+        vertical-align: middle;
+    }
+
+    .table td {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .sticky-header button {
+        margin-top: 0.5rem;
+        align-self: flex-start;
+    }
+</style>
