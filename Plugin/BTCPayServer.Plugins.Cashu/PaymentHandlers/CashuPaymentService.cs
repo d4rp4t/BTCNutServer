@@ -349,6 +349,11 @@ public class CashuPaymentService
         var meltQuoteResponse = await wallet.CreateMeltQuote(token, unitPrice, keysets);
         if (!meltQuoteResponse.Success)
         {
+            _logs.PayServer.LogError("Could not create melt quote!" );
+            if (meltQuoteResponse.Error != null)
+            {
+                _logs.PayServer.LogError("Exception: {ex}", meltQuoteResponse.Error );
+            }
             throw new CashuPaymentException("Could not create melt quote!");
         }
         

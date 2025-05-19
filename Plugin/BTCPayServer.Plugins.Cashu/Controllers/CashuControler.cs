@@ -276,9 +276,11 @@ public class CashuController: Controller
             StoreId = StoreData.Id,
             IsUsed = false,
         };
+        var strategy = db.Database.CreateExecutionStrategy();
         
-        using (var transaction = await db.Database.BeginTransactionAsync())
+        await strategy.ExecuteAsync(async () =>
         {
+            await using var transaction = await db.Database.BeginTransactionAsync();
             try
             {
                 db.Proofs.RemoveRange(proofsToRemove);
@@ -290,9 +292,10 @@ public class CashuController: Controller
             {
                 await transaction.RollbackAsync();
                 ViewData[WellKnownTempData.ErrorMessage] = $"Couldn't export";
+                RedirectToAction(nameof(CashuWallet), new { storeId = StoreData.Id });
             }
-        }
-        
+        });
+        Console.WriteLine(exportedTokenEntity.Id);
         return RedirectToAction(nameof(ExportedToken), new { tokenId = exportedTokenEntity.Id });
     }
 
