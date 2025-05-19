@@ -295,7 +295,6 @@ public class CashuController: Controller
                 RedirectToAction(nameof(CashuWallet), new { storeId = StoreData.Id });
             }
         });
-        Console.WriteLine(exportedTokenEntity.Id);
         return RedirectToAction(nameof(ExportedToken), new { tokenId = exportedTokenEntity.Id });
     }
 
