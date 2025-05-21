@@ -40,11 +40,14 @@ public class CashuPaymentMethodHandler(
         var invoice = context.InvoiceEntity;
         var paymentPath = $"{invoice.ServerUrl}/stores/{store.Id}/cashu/PayInvoicePr";
 
-        var due = context.Prompt.Calculate().Due;
-        var paymentRequest = CashuUtils.CreatePaymentRequest(Convert.ToInt32(Math.Ceiling(due)), invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
-        context.Prompt.Destination = paymentRequest;
+
         const decimal satsPerBtc = 100000000;
         context.Prompt.AddTweakFee(cashuConfig.FeeConfing.CustomerFeeAdvance/satsPerBtc);
+        
+        var due = context.Prompt.Calculate().Due;
+        var paymentRequest =
+            CashuUtils.CreatePaymentRequest(Convert.ToInt32(Math.Ceiling(satsPerBtc*due)), invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
+         context.Prompt.Destination = paymentRequest;
         
         if (cashuConfig.MaxPaymentAmountSats < due * satsPerBtc)
         {
