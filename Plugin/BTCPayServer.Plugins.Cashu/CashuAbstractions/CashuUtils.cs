@@ -25,7 +25,8 @@ public static class CashuUtils
     /// <returns></returns>
     public static CashuHttpClient GetCashuHttpClient(string mintUrl)
     {
-        var mintUri = new Uri(mintUrl);
+        //add trailing / so mint like https://mint.minibits.cash/Bitcoin will work correctly
+        var mintUri = new Uri(mintUrl + "/");
         var client = new HttpClient { BaseAddress = mintUri };
         //Some operations, like Melt can take a long time. But 5 minutes should be more than ok.
         client.Timeout = TimeSpan.FromMinutes(5);
