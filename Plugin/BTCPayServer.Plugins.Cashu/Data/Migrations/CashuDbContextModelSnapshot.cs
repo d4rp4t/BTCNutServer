@@ -57,21 +57,21 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
 
             modelBuilder.Entity("BTCPayServer.Plugins.Cashu.Data.Models.FailedTransaction", b =>
                 {
-                    b.Property<string>("InvoiceId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("MintUrl")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Details")
-                        .HasColumnType("text");
-
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.Property<string>("InvoiceId")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("LastRetried")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MintUrl")
+                        .HasColumnType("text");
 
                     b.Property<int>("OperationType")
                         .HasColumnType("integer");
@@ -88,7 +88,7 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                     b.Property<string>("Unit")
                         .HasColumnType("text");
 
-                    b.HasKey("InvoiceId", "MintUrl");
+                    b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
 
@@ -151,11 +151,8 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                         .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "dleq");
 
-                    b.Property<string>("FailedTransactionInvoiceId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FailedTransactionMintUrl")
-                        .HasColumnType("text");
+                    b.Property<Guid?>("FailedTransactionId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Id")
                         .IsRequired()
@@ -178,11 +175,11 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
 
                     b.HasIndex("Amount");
 
+                    b.HasIndex("FailedTransactionId");
+
                     b.HasIndex("Id");
 
                     b.HasIndex("StoreId");
-
-                    b.HasIndex("FailedTransactionInvoiceId", "FailedTransactionMintUrl");
 
                     b.ToTable("Proofs", "BTCPayServer.Plugins.Cashu");
                 });
@@ -191,11 +188,8 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                 {
                     b.OwnsOne("BTCPayServer.Plugins.Cashu.CashuAbstractions.CashuUtils+OutputData", "OutputData", b1 =>
                         {
-                            b1.Property<string>("FailedTransactionInvoiceId")
-                                .HasColumnType("text");
-
-                            b1.Property<string>("FailedTransactionMintUrl")
-                                .HasColumnType("text");
+                            b1.Property<Guid>("FailedTransactionId")
+                                .HasColumnType("uuid");
 
                             b1.Property<string>("BlindedMessages")
                                 .HasColumnType("text");
@@ -206,21 +200,18 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                             b1.Property<string>("Secrets")
                                 .HasColumnType("text");
 
-                            b1.HasKey("FailedTransactionInvoiceId", "FailedTransactionMintUrl");
+                            b1.HasKey("FailedTransactionId");
 
                             b1.ToTable("FailedTransactions", "BTCPayServer.Plugins.Cashu");
 
                             b1.WithOwner()
-                                .HasForeignKey("FailedTransactionInvoiceId", "FailedTransactionMintUrl");
+                                .HasForeignKey("FailedTransactionId");
                         });
 
                     b.OwnsOne("BTCPayServer.Plugins.Cashu.Data.Models.MeltDetails", "MeltDetails", b1 =>
                         {
-                            b1.Property<string>("FailedTransactionInvoiceId")
-                                .HasColumnType("text");
-
-                            b1.Property<string>("FailedTransactionMintUrl")
-                                .HasColumnType("text");
+                            b1.Property<Guid>("FailedTransactionId")
+                                .HasColumnType("uuid");
 
                             b1.Property<DateTimeOffset>("Expiry")
                                 .HasColumnType("timestamp with time zone");
@@ -234,12 +225,12 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                             b1.Property<string>("Status")
                                 .HasColumnType("text");
 
-                            b1.HasKey("FailedTransactionInvoiceId", "FailedTransactionMintUrl");
+                            b1.HasKey("FailedTransactionId");
 
                             b1.ToTable("FailedTransactions", "BTCPayServer.Plugins.Cashu");
 
                             b1.WithOwner()
-                                .HasForeignKey("FailedTransactionInvoiceId", "FailedTransactionMintUrl");
+                                .HasForeignKey("FailedTransactionId");
                         });
 
                     b.Navigation("MeltDetails");
@@ -262,7 +253,7 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                 {
                     b.HasOne("BTCPayServer.Plugins.Cashu.Data.Models.FailedTransaction", null)
                         .WithMany("UsedProofs")
-                        .HasForeignKey("FailedTransactionInvoiceId", "FailedTransactionMintUrl");
+                        .HasForeignKey("FailedTransactionId");
                 });
 
             modelBuilder.Entity("BTCPayServer.Plugins.Cashu.Data.Models.FailedTransaction", b =>

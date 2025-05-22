@@ -83,7 +83,7 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
         
         modelBuilder.Entity<FailedTransaction>(entity =>
         {
-            entity.HasKey(t => new { t.InvoiceId, t.MintUrl });
+            entity.HasKey(t => t.Id);
             entity.HasIndex(t => t.InvoiceId);
             entity.OwnsOne(t => t.MeltDetails);
             entity.OwnsOne(t => t.OutputData, fo =>

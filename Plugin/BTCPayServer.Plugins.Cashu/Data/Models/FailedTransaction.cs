@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 
@@ -7,6 +8,7 @@ namespace BTCPayServer.Plugins.Cashu.Data.Models;
 
 public class FailedTransaction
 {
+    [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; }
     public required string InvoiceId { get; set; }
