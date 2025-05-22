@@ -493,17 +493,7 @@ public class CashuWallet
 
         var invoice = await _lightningClient.GetInvoice(invoiceId);
 
-        if (invoice == null)
-        {
-            return false;
-        }
-
-        if (invoice.Status != LightningInvoiceStatus.Paid)
-        {
-            return false;
-        }
-        
-        return invoice.AmountReceived == invoice.Amount;
+        return invoice?.Status == LightningInvoiceStatus.Paid;
     }
 
     public async Task<PostMeltQuoteBolt11Response> CheckMeltQuoteState(string meltQuoteId, CancellationToken cts = default)

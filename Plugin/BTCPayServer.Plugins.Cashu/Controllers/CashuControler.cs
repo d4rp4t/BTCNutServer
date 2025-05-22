@@ -521,7 +521,7 @@ public class CashuController: Controller
             {
                 Mint = payload["mint"].Value<string>(),
                 PaymentId = payload["id"].Value<string>(),
-                Memo = payload["memo"].Value<string>(),
+                Memo = payload["memo"]?.Value<string>(),
                 Unit = payload["unit"].Value<string>(),
                 Proofs = payload["proofs"].Value<JArray>().Select(p => new Proof
                 {
