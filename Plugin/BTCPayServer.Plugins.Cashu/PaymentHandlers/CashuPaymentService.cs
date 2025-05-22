@@ -257,7 +257,7 @@ public class CashuPaymentService
                     {
                         InvoiceId = invoice.Id,
                         StoreId = invoice.StoreId,
-                        LastRetried = DateTimeOffset.Now,
+                        LastRetried = DateTimeOffset.Now.ToUniversalTime(),
                         MintUrl = token.Mint,
                         UsedProofs = StoredProof.FromBatch(token.Proofs, invoice.StoreId).ToList(),
                         OperationType = OperationType.Swap,
@@ -271,7 +271,7 @@ public class CashuPaymentService
                     if (!pollResult.Success)
                     {
                         ftx.RetryCount +=1;
-                        ftx.LastRetried = DateTimeOffset.Now;
+                        ftx.LastRetried = DateTimeOffset.Now.ToUniversalTime();
                         await using var db = _cashuDbContextFactory.CreateContext();
                         await db.FailedTransactions.AddAsync(ftx, cts);
                         await db.SaveChangesAsync(cts);
@@ -299,7 +299,7 @@ public class CashuPaymentService
             {
                 InvoiceId = invoice.Id,
                 StoreId = invoice.StoreId,
-                LastRetried = DateTimeOffset.Now,
+                LastRetried = DateTimeOffset.Now.ToUniversalTime(),
                 MintUrl = token.Mint,
                 UsedProofs = StoredProof.FromBatch(token.Proofs, invoice.StoreId).ToList(),
                 OperationType = OperationType.Swap,
@@ -373,13 +373,14 @@ public class CashuPaymentService
         if (meltResponse.Success)
         {
             var lnInvPaid = await wallet.ValidateLightningInvoicePaid(meltQuoteResponse.Invoice?.Id);
+            
             if (!lnInvPaid)
             {
                 var ftx = new FailedTransaction
                 {
                     StoreId = invoice.StoreId,                 
                     InvoiceId = invoice.Id,
-                    LastRetried = DateTimeOffset.Now,
+                    LastRetried = DateTimeOffset.Now.ToUniversalTime(),
                     MintUrl = token.Mint,
                     Unit = token.Unit,
                     UsedProofs = StoredProof.FromBatch(token.Proofs, invoice.StoreId).ToList(),
@@ -394,8 +395,7 @@ public class CashuPaymentService
                         Status = "PENDING"
                     },
                     RetryCount = 1,
-                    Details = "Mint marked melt quote as paid, but lightning invoice is still unpaid."
-                    
+                    Details = "Mint marked melt quote as paid, but lightning invoice is still unpaid.",
                 };
                 await using var ctx = _cashuDbContextFactory.CreateContext();
                 ctx.FailedTransactions.Add(ftx);
@@ -435,7 +435,7 @@ public class CashuPaymentService
             {
                 StoreId = store.Id,                 
                 InvoiceId = invoice.Id,
-                LastRetried = DateTimeOffset.Now,
+                LastRetried = DateTimeOffset.Now.ToUniversalTime(),
                 MintUrl = token.Mint,
                 Unit = token.Unit,
                 UsedProofs = StoredProof.FromBatch(token.Proofs, store.Id).ToList(),

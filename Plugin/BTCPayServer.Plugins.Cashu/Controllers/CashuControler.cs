@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Constants;
 using BTCPayServer.Client;
@@ -20,7 +19,10 @@ using Microsoft.EntityFrameworkCore;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using DotNut;
 using DotNut.ApiModels;
+using Microsoft.AspNetCore.Cors;
+using Newtonsoft.Json.Linq;
 using InvoiceStatus = BTCPayServer.Client.Models.InvoiceStatus;
+using StoreData = BTCPayServer.Data.StoreData;
 
 namespace BTCPayServer.Plugins.Cashu.Controllers;
 
@@ -166,8 +168,9 @@ public class CashuController: Controller
 
                var localProofs = await db.Proofs
                    .Where(p => keysets.Keysets.Select(k => k.Id).Contains(p.Id) &&
-                               p.StoreId == StoreData.Id)
-                   .ToListAsync();
+                               p.StoreId == StoreData.Id &&
+                                 !db.FailedTransactions.Any(ft => ft.UsedProofs.Contains(p)
+                                     )).ToListAsync();
                
                 foreach (var proof in localProofs)
                 {
@@ -357,7 +360,11 @@ public class CashuController: Controller
     {
         await using var db = _cashuDbContextFactory.CreateContext();
         //fetch recently failed transactions 
-        var failedTransactions = db.FailedTransactions.Where(ft => ft.StoreId == StoreData.Id).ToList();
+        var failedTransactions = db.FailedTransactions
+            .Where(ft => ft.StoreId == StoreData.Id)
+            .Include(ft=>ft.UsedProofs)
+            .ToList();
+            
         return View(failedTransactions);
     }
     
@@ -451,6 +458,7 @@ public class CashuController: Controller
          var summedProofs = failedTransaction.UsedProofs.Select(p=>p.Amount).Sum();
          await _cashuPaymentService.RegisterCashuPayment(invoice, cashuHandler, summedProofs*singleUnitPrice);
          db.FailedTransactions.Remove(failedTransaction);
+         await db.SaveChangesAsync();
          TempData[WellKnownTempData.SuccessMessage] = $"Transaction retrieved successfully. Marked as paid.";
          return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id});
      }
@@ -465,6 +473,7 @@ public class CashuController: Controller
     /// <param name="returnUrl"></param>
     /// <returns></returns>
     /// <exception cref="CashuPaymentException"></exception>
+    [EnableCors(CorsPolicies.All)]
     [AllowAnonymous]
     [HttpPost("PayInvoice")]
     public async Task<IActionResult> PayByToken(string token, string invoiceId, string storeId, string returnUrl)
@@ -495,23 +504,41 @@ public class CashuController: Controller
     /// <param name="paymentPayload"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
+    [EnableCors(CorsPolicies.All)]
     [AllowAnonymous]
     [HttpPost("PayInvoicePr")]
-    public async Task<ActionResult> PayByPaymentRequest(string paymentPayload)
+    public async Task<ActionResult> PayByPaymentRequest([FromBody] JObject payload)
     {
         try
         {
-            var parsedPayload = JsonSerializer.Deserialize<PaymentRequestPayload>(paymentPayload);
+            if (payload["mint"] == null || payload["id"] == null || payload["unit"] == null || payload["proofs"] == null)
+            {
+                throw new ArgumentException("Required fields are missing in the payload.");
+            }
+
+            //it's a workaround - it should be deserialized by JSONSerializer 
+            var parsedPayload = new PaymentRequestPayload
+            {
+                Mint = payload["mint"].Value<string>(),
+                PaymentId = payload["id"].Value<string>(),
+                Memo = payload["memo"].Value<string>(),
+                Unit = payload["unit"].Value<string>(),
+                Proofs = payload["proofs"].Value<JArray>().Select(p => new Proof
+                {
+                    Amount = p["amount"]!.Value<ulong>(),
+                    Id = new KeysetId(p["id"]!.Value<string>()),
+                    Secret = new StringSecret(p["secret"]!.Value<string>()), 
+                    C = new PubKey(p["C"]!.Value<string>()), 
+                }).ToArray()
+            };
+            Console.WriteLine(parsedPayload);
+            // var parsedPayload = JsonSerializer.Deserialize<PaymentRequestPayload>(paymentPayload);
             //   "id": str <optional>, will correspond to invoiceId
             //   "memo": str <optional>, idc about this
             //   "mint": str, //if trusted mint - save to db, if not - melt 🔥
             //   "unit": <str_enum>, should always be in sat, since there aren't any standardisation for unit denomination
             //   "proofs": Array<Proof>  yeah proofs
-
-            if (parsedPayload == null)
-            {
-                return BadRequest("Invalid payment payload");
-            }
+            
 
             var invoice = await _invoiceRepository.GetInvoice(parsedPayload.PaymentId);
 
