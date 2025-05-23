@@ -16,7 +16,13 @@
             <input type="hidden" name="returnUrl"  value="/i/@Model.InvoiceId"/>
             <input type="hidden" name="storeId" value="@Model.StoreId"/>
             <input type="text" name="token" autofocus="autofocus" class="rounded-pill w-100 btn border-white" placeholder="Enter your cashu token..."/>
-            <Button id="payButton" class="btn btn-primary rounded-pill w-100 mt-3">Pay</Button>
+            <button id="payButton"
+                    type="submit"
+                    class="btn btn-primary rounded-pill w-100 mt-3"
+                    :disabled="isSubmitting">
+                <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span v-else>Pay</span>
+            </button>
             <p>Merchant will receive full token worth. No change will be withdrawn.</p>
         </form>
         
@@ -34,11 +40,22 @@
             return {
                 currentTab: undefined,
                 //FIXME: it SHOULD be in the model, but there's already more important payment request. Maybe use AdditionalData dictioanary?
-                pastedTokenPaymentUrl: '/stores/' + this.model.StoreId + '/cashu/PayInvoice'
+                
+                pastedTokenPaymentUrl: '/stores/' + this.model.StoreId + '/cashu/PayInvoice',
+                isSubmitting: false
             };
-            
+        },
+        mounted() {
+            this.isSubmitting = false;
+            const form = this.$el.querySelector('#payByTokenForm');
+            if (form) {
+                form.addEventListener('submit', (evt) => {
+                    this.isSubmitting = true;
+                });
+            }
         }
     });
+    
 </script>
 
 
