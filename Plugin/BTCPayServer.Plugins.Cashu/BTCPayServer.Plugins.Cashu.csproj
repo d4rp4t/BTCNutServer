@@ -62,7 +62,7 @@
 
     <ItemGroup>
         <PackageReference Include="BTCPayServer.Lightning.All" Version="1.6.9" />
-        <PackageReference Include="DotNut" Version="1.0.3" />
+        <PackageReference Include="DotNut" Version="1.0.4" />
     </ItemGroup>
 
 </Project>
