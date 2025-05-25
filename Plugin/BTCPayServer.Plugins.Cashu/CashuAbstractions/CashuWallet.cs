@@ -159,11 +159,18 @@ public class CashuWallet
             var response = await _cashuHttpClient.Melt<PostMeltQuoteBolt11Response, PostMeltBolt11Request>(
                 "bolt11",
                 request, cancellationToken);
+            
+            Proof[]? change = null;
+            
+            if (response?.Change != null && response.Change.Length != 0 && blankOutputs.BlindingFactors.Length >= response.Change.Length )
+            {
+                change = CashuUtils.CreateProofs(response.Change, blankOutputs.BlindingFactors,
+                    blankOutputs.Secrets, keys);
+            }
             return new MeltResult()
             {
                 BlankOutputs = blankOutputs,
-                ChangeProofs = CashuUtils.CreateProofs(response.Change, blankOutputs.BlindingFactors,
-                    blankOutputs.Secrets, keys),
+                ChangeProofs = change,
                 Quote = response
             };
         }

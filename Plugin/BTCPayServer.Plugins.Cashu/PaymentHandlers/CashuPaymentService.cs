@@ -513,9 +513,15 @@ public class CashuPaymentService
             _lightningClientFactoryService);
     }
 
-    public async Task AddProofsToDb(IEnumerable<Proof> proofs, string storeId, string mintUrl)
+    public async Task AddProofsToDb(IEnumerable<Proof>? proofs, string storeId, string mintUrl)
     {
+        if (proofs == null)
+        {
+            return;
+        }
+        
         var enumerable = proofs as Proof[] ?? proofs.ToArray();
+        
         if (enumerable.Length == 0)
         {
             return;
