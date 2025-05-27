@@ -13,6 +13,7 @@ using BTCPayServer.Plugins.Cashu.Controllers;
 using BTCPayServer.Services.Invoices;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using NBitcoin;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -45,16 +46,15 @@ public class CashuPaymentMethodHandler(
         ;
         var paymentPath =  $"{invoice.ServerUrl.WithoutEndingSlash()}{linkGenerator.GetPathByAction(nameof(CashuController.PayByPaymentRequest), "Cashu")}";
 
-
-        const decimal satsPerBtc = 100000000;
-        context.Prompt.AddTweakFee(cashuConfig.FeeConfing.CustomerFeeAdvance/satsPerBtc);
         
-        var due = context.Prompt.Calculate().Due;
+        context.Prompt.AddTweakFee(Money.Satoshis(cashuConfig.FeeConfing.CustomerFeeAdvance).ToDecimal(MoneyUnit.BTC));
+        
+        var due = Money.Coins(context.Prompt.Calculate().Due);
         var paymentRequest =
-            CashuUtils.CreatePaymentRequest(Convert.ToInt32(Math.Ceiling(satsPerBtc*due)), invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
+            CashuUtils.CreatePaymentRequest(due, invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
          context.Prompt.Destination = paymentRequest;
-        
-        if (cashuConfig.MaxPaymentAmountSats < due * satsPerBtc)
+
+        if (cashuConfig.MaxPaymentAmountSats < due.Satoshi)
         {
             throw new PaymentMethodUnavailableException("Payment amount too big!");
         }

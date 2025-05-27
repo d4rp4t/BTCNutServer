@@ -544,7 +544,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void CreatePaymentRequest_ValidInputs_ReturnsCorrectRequest()
         {
             // Arrange
-            int amount = 100;
+            var amount = Money.Satoshis(100);
             string invoiceId = "invoice123";
             string endpoint = "https://example.com/payment";
             string[] trustedMintsUrls = ["https://mint1.com", "https://mint2.com"];
@@ -571,7 +571,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void CreatePaymentRequest_NullMints_UsesEmptyArray()
         {
             // Arrange
-            int amount = 100;
+            var amount = Money.Satoshis(100);
             string invoiceId = "invoice123";
             string endpoint = "https://example.com/payment";
 
@@ -588,7 +588,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void CreatePaymentRequest_NullOrEmptyEndpoint_ThrowsArgumentNullException()
         {
             // Arrange
-            int amount = 100;
+            var amount = Money.Satoshis(100);
             string invoiceId = "invoice123";
             string endpoint = "";
 
@@ -603,7 +603,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void CreatePaymentRequest_NullOrEmptyInvoiceId_ThrowsArgumentNullException()
         {
             // Arrange
-            int amount = 100;
+            var amount = Money.Satoshis(100);
             string invoiceId = "";
             string endpoint = "endpoint123";
 
@@ -622,7 +622,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             string endpoint = "endpoint123";
             
             Assert.Throws<ArgumentException>(() =>
-                CashuUtils.CreatePaymentRequest(-1, invoiceId, endpoint, null));
+                CashuUtils.CreatePaymentRequest(Money.Satoshis(-1), invoiceId, endpoint, null));
         }
 
         [Fact]
@@ -631,7 +631,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             // Arrange
             string invoiceId = "invoice123";
             string endpoint = "endpoint123";
-            var pr =CashuUtils.CreatePaymentRequest(0, invoiceId, endpoint, null);
+            var pr =CashuUtils.CreatePaymentRequest(Money.Zero, invoiceId, endpoint, null);
             Assert.NotNull(pr);
             var deserializedPr = PaymentRequest.Parse(pr);
             Assert.Null(deserializedPr.Amount);

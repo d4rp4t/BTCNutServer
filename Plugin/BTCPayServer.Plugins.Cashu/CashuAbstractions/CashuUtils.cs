@@ -412,12 +412,12 @@ public static class CashuUtils
     /// <summary>
     /// Helper function creating NUT-18 payment request
     /// </summary>
-    /// <param name="amount">Amount in satoshi</param>
+    /// <param name="amount">Amount</param>
     /// <param name="invoiceId">Payment id. In this scenario invoice id.</param>
     /// <param name="endpoint">POST request endpoint. for now only http post supported</param>
     /// <param name="trustedMintsUrls">list of merchants trusted mints</param>
     /// <returns>serialized payment request</returns>
-    public static string CreatePaymentRequest(int amount, string invoiceId, string endpoint,
+    public static string CreatePaymentRequest(Money amount, string invoiceId, string endpoint,
         IEnumerable<string>? trustedMintsUrls)
     {
         if (string.IsNullOrEmpty(endpoint))
@@ -430,7 +430,7 @@ public static class CashuUtils
             throw new ArgumentNullException(nameof(invoiceId));
         }
 
-        if (amount < 0)
+        if (amount < Money.Zero)
         {
             throw new ArgumentException("Amount must be greater than 0.");
         }
@@ -439,7 +439,7 @@ public static class CashuUtils
         var paymentRequest = new DotNut.PaymentRequest()
         {
             Unit = "sat", //since it's not standardized how to denominate tokens, it will always be sats. 
-            Amount = amount == 0 ? null : (ulong)amount,
+            Amount = amount == Money.Zero ? null : (ulong)amount.Satoshi,
             PaymentId = invoiceId,
             Mints = trustedMintsUrls?.ToArray() ?? [],
             Transports =
