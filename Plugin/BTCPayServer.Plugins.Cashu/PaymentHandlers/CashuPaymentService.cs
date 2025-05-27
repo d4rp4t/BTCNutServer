@@ -66,14 +66,12 @@ public class CashuPaymentService
     /// </summary>
     /// <param name="token">v4 Cashu Token</param>
     /// <param name="invoiceId"></param>
-    /// <param name="storeId"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     public async Task ProcessPaymentAsync(
         CashuToken token,
         string invoiceId,
-        string storeId,
         CancellationToken cancellationToken = default
         )
     {
@@ -81,9 +79,7 @@ public class CashuPaymentService
 
         var invoice = await _invoiceRepository.GetInvoice(invoiceId, true);
 
-        if (invoice == null ||
-            invoice.StoreId != storeId ||
-            invoice.Status != InvoiceStatus.New)
+        if (invoice == null)
             throw new CashuPaymentException("Invalid invoice");
                 
         var storeData = await _storeRepository.FindStore(invoice.StoreId);
@@ -137,8 +133,8 @@ public class CashuPaymentService
         
         _logs.PayServer.LogInformation(
             "(Cashu) Processing Cashu payment. Invoice: {InvoiceId}, Store: {StoreId}, Amount: {AmountSats} sat", 
-            invoiceId, 
-            storeId, 
+            invoiceId,
+            invoice.StoreId, 
             invoiceSats
         );
         
