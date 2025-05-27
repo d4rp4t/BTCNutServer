@@ -21,8 +21,10 @@ using BTCPayServer.Plugins.Cashu.Data.Models;
 using DotNut;
 using DotNut.ApiModels;
 using Microsoft.AspNetCore.Cors;
+using NBitcoin;
 using Newtonsoft.Json.Linq;
 using InvoiceStatus = BTCPayServer.Client.Models.InvoiceStatus;
+using PubKey = DotNut.PubKey;
 using StoreData = BTCPayServer.Data.StoreData;
 
 namespace BTCPayServer.Plugins.Cashu.Controllers;
@@ -457,7 +459,7 @@ public class CashuController: Controller
          }
          
          var summedProofs = failedTransaction.UsedProofs.Select(p=>p.Amount).Sum();
-         await _cashuPaymentService.RegisterCashuPayment(invoice, cashuHandler, summedProofs*singleUnitPrice);
+         await _cashuPaymentService.RegisterCashuPayment(invoice, cashuHandler, Money.Satoshis(summedProofs*singleUnitPrice));
          db.FailedTransactions.Remove(failedTransaction);
          await db.SaveChangesAsync();
          TempData[WellKnownTempData.SuccessMessage] = $"Transaction retrieved successfully. Marked as paid.";

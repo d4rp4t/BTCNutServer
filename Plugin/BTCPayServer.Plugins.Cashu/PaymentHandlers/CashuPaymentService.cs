@@ -24,6 +24,7 @@ using DotNut.Api;
 using DotNut.ApiModels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NBitcoin;
 using InvoiceStatus = BTCPayServer.Client.Models.InvoiceStatus;
 using StoreData = BTCPayServer.Data.StoreData;
 
@@ -275,7 +276,7 @@ public class CashuPaymentService
                     }
                     
                     await AddProofsToDb(pollResult.ResultProofs!, ftx.StoreId, ftx.MintUrl);
-                    await RegisterCashuPayment(invoice, handler, tokenSatoshiWorth);
+                    await RegisterCashuPayment(invoice, handler, Money.Satoshis(tokenSatoshiWorth));
                     
 
                     break;
@@ -306,7 +307,7 @@ public class CashuPaymentService
             };
         }
         await AddProofsToDb(swapResult.ResultProofs, invoice.StoreId, token.Mint);
-        await RegisterCashuPayment(invoice, handler, tokenSatoshiWorth);
+        await RegisterCashuPayment(invoice, handler, Money.Satoshis(tokenSatoshiWorth));
     }
 
 
@@ -400,12 +401,12 @@ public class CashuPaymentService
             }
             
             
-            var amountMelted = meltQuoteResponse.Invoice.Amount.ToDecimal(LightMoneyUnit.Satoshi);
-            var overpaidFeesReturned = meltResponse.ChangeProofs?.Select(p=>p.Amount).Sum()*unitPrice??0;
+            var amountMelted = meltQuoteResponse.Invoice.Amount;
+            var overpaidFeesReturned = Money.Satoshis(meltResponse.ChangeProofs?.Select(p=>p.Amount).Sum()*unitPrice??0);
             var amountPaid =  amountMelted + overpaidFeesReturned; 
             //add overpaid ln fees proofs to the db and register payment
             await AddProofsToDb(meltResponse.ChangeProofs, store.Id, token.Mint);
-            await RegisterCashuPayment(invoice, handler, amountPaid ); 
+            await RegisterCashuPayment(invoice, handler, amountPaid); 
             
             _logs.PayServer.LogInformation(
                 "(Cashu) Melt operation success. Melted: {amountMelted} sat, Overpaid lightning fees returned: {overpaidFeesReturned} sat. Total: {total} sat", 
@@ -473,7 +474,7 @@ public class CashuPaymentService
         }
     }
     
-    public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, decimal amount)
+    public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, Money amount)
     {
         var paymentData = new PaymentData
         {
@@ -482,7 +483,7 @@ public class CashuPaymentService
             Status = PaymentStatus.Processing,
             Currency = "BTC",
             InvoiceDataId = invoice.Id,
-            Amount = amount/100000000,
+            Amount = amount.ToDecimal(MoneyUnit.BTC),
             PaymentMethodId = handler.PaymentMethodId.ToString()
         }.Set(invoice, handler, new CashuPaymentData());
         
