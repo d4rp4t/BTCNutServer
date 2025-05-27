@@ -261,7 +261,7 @@ public class CashuPaymentService
                         OutputData = swapResult.ProvidedOutputs,
                         Unit = token.Unit,
                         RetryCount = 0,
-                        Details = "Conenction with mint broken while swap",
+                        Details = "Connection with mint broken while swap",
                     };
                     var pollResult = await PollFailedSwap(ftx, store, cts);
 

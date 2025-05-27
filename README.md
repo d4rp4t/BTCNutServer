@@ -16,7 +16,7 @@ BTCNutServer enables BTCPay Server to accept Bitcoin payments via **Cashu tokens
 
 ### 2. Melt Immediately
 - Melt means redeeming tokens directly to a Lightning wallet, receiving sats instantly.
-- Some mints return Overpaid Lighting fees, but not all do ([NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md), [NUT-08](https://github.com/cashubtc/nuts/blob/main/08.md)).
+- Some mints return Overpaid Lightning fees, but not all do ([NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md), [NUT-08](https://github.com/cashubtc/nuts/blob/main/08.md)).
 - Tokens coming from trusted mints will be received and held similarly to the first model.
 - The store must have a Lightning backend connected.
 
