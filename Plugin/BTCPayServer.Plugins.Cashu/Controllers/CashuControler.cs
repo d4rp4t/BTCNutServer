@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Constants;
 using BTCPayServer.Client;
+using BTCPayServer.Controllers;
 using BTCPayServer.Data;
 using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.enums;
@@ -20,8 +21,10 @@ using BTCPayServer.Plugins.Cashu.Data.Models;
 using DotNut;
 using DotNut.ApiModels;
 using Microsoft.AspNetCore.Cors;
+using NBitcoin;
 using Newtonsoft.Json.Linq;
 using InvoiceStatus = BTCPayServer.Client.Models.InvoiceStatus;
+using PubKey = DotNut.PubKey;
 using StoreData = BTCPayServer.Data.StoreData;
 
 namespace BTCPayServer.Plugins.Cashu.Controllers;
@@ -456,7 +459,7 @@ public class CashuController: Controller
          }
          
          var summedProofs = failedTransaction.UsedProofs.Select(p=>p.Amount).Sum();
-         await _cashuPaymentService.RegisterCashuPayment(invoice, cashuHandler, summedProofs*singleUnitPrice);
+         await _cashuPaymentService.RegisterCashuPayment(invoice, cashuHandler, Money.Satoshis(summedProofs*singleUnitPrice));
          db.FailedTransactions.Remove(failedTransaction);
          await db.SaveChangesAsync();
          TempData[WellKnownTempData.SuccessMessage] = $"Transaction retrieved successfully. Marked as paid.";
@@ -469,14 +472,12 @@ public class CashuController: Controller
     /// </summary>
     /// <param name="token">V4 encoded Cashu Token</param>
     /// <param name="invoiceId"></param>
-    /// <param name="storeId"></param>
-    /// <param name="returnUrl"></param>
     /// <returns></returns>
     /// <exception cref="CashuPaymentException"></exception>
     [EnableCors(CorsPolicies.All)]
     [AllowAnonymous]
-    [HttpPost("PayInvoice")]
-    public async Task<IActionResult> PayByToken(string token, string invoiceId, string storeId, string returnUrl)
+    [HttpPost("~/cashu/PayInvoice")]
+    public async Task<IActionResult> PayByToken(string token, string invoiceId)
     {
         try
         {
@@ -484,7 +485,7 @@ public class CashuController: Controller
             {
                 throw new CashuPaymentException("Invalid token");
             }
-            await _cashuPaymentService.ProcessPaymentAsync(decodedToken, invoiceId, storeId);
+            await _cashuPaymentService.ProcessPaymentAsync(decodedToken, invoiceId);
         }
         catch (CashuPaymentException cex)
         {
@@ -495,7 +496,7 @@ public class CashuController: Controller
             return BadRequest(ex.Message);
         }
 
-        return Redirect(returnUrl);
+        return Redirect(Url.ActionAbsolute(this.Request, nameof(UIInvoiceController.Checkout), "UIInvoice", new { invoiceId = invoiceId }).AbsoluteUri);
     }
     
     /// <summary>
@@ -506,7 +507,7 @@ public class CashuController: Controller
     /// <exception cref="Exception"></exception>
     [EnableCors(CorsPolicies.All)]
     [AllowAnonymous]
-    [HttpPost("PayInvoicePr")]
+    [HttpPost("~/cashu/PayInvoicePr")]
     public async Task<ActionResult> PayByPaymentRequest([FromBody] JObject payload)
     {
         try
@@ -531,21 +532,12 @@ public class CashuController: Controller
                     C = new PubKey(p["C"]!.Value<string>()), 
                 }).ToArray()
             };
-            Console.WriteLine(parsedPayload);
             // var parsedPayload = JsonSerializer.Deserialize<PaymentRequestPayload>(paymentPayload);
             //   "id": str <optional>, will correspond to invoiceId
             //   "memo": str <optional>, idc about this
             //   "mint": str, //if trusted mint - save to db, if not - melt 🔥
             //   "unit": <str_enum>, should always be in sat, since there aren't any standardisation for unit denomination
             //   "proofs": Array<Proof>  yeah proofs
-            
-
-            var invoice = await _invoiceRepository.GetInvoice(parsedPayload.PaymentId);
-
-            if (invoice.Status != InvoiceStatus.New)
-            {
-                throw new Exception("Invalid invoice");
-            }
 
             var token = new CashuToken
             {
@@ -561,7 +553,7 @@ public class CashuController: Controller
                 Unit = parsedPayload.Unit
             };
 
-            await _cashuPaymentService.ProcessPaymentAsync(token, invoice.Id, invoice.StoreId);
+            await _cashuPaymentService.ProcessPaymentAsync(token, parsedPayload.PaymentId);
             return Ok("Payment sent!");
         }
         catch (CashuPaymentException cex)

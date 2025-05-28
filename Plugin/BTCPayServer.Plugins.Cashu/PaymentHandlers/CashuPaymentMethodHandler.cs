@@ -2,14 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using BTCPayServer.Abstractions.Extensions;
 using BTCPayServer.Data;
 using BTCPayServer.Payments;
 using BTCPayServer.Payments.Bitcoin;
 using BTCPayServer.Payments.Lightning;
 using BTCPayServer.Plugins.Cashu.Data.enums;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
+using BTCPayServer.Plugins.Cashu.Controllers;
 using BTCPayServer.Services.Invoices;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using NBitcoin;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -17,7 +21,8 @@ using Newtonsoft.Json.Linq;
 namespace BTCPayServer.Plugins.Cashu.PaymentHandlers;
 public class CashuPaymentMethodHandler(
     BTCPayNetworkProvider networkProvider,
-    IServiceProvider serviceProvider)
+    IServiceProvider serviceProvider,
+    LinkGenerator linkGenerator)
     : IPaymentMethodHandler, IHasNetwork
 {
     private readonly BTCPayNetwork _network = networkProvider.GetNetwork<BTCPayNetwork>("BTC");
@@ -38,18 +43,18 @@ public class CashuPaymentMethodHandler(
         }
         
         var invoice = context.InvoiceEntity;
-        var paymentPath = $"{invoice.ServerUrl}/stores/{store.Id}/cashu/PayInvoicePr";
+        ;
+        var paymentPath =  $"{invoice.ServerUrl.WithoutEndingSlash()}{linkGenerator.GetPathByAction(nameof(CashuController.PayByPaymentRequest), "Cashu")}";
 
-
-        const decimal satsPerBtc = 100000000;
-        context.Prompt.AddTweakFee(cashuConfig.FeeConfing.CustomerFeeAdvance/satsPerBtc);
         
-        var due = context.Prompt.Calculate().Due;
+        context.Prompt.AddTweakFee(Money.Satoshis(cashuConfig.FeeConfing.CustomerFeeAdvance).ToDecimal(MoneyUnit.BTC));
+        
+        var due = Money.Coins(context.Prompt.Calculate().Due);
         var paymentRequest =
-            CashuUtils.CreatePaymentRequest(Convert.ToInt32(Math.Ceiling(satsPerBtc*due)), invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
+            CashuUtils.CreatePaymentRequest(due, invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
          context.Prompt.Destination = paymentRequest;
-        
-        if (cashuConfig.MaxPaymentAmountSats < due * satsPerBtc)
+
+        if (cashuConfig.MaxPaymentAmountSats < due.Satoshi)
         {
             throw new PaymentMethodUnavailableException("Payment amount too big!");
         }

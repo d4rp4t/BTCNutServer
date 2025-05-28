@@ -24,6 +24,7 @@ using DotNut.Api;
 using DotNut.ApiModels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NBitcoin;
 using InvoiceStatus = BTCPayServer.Client.Models.InvoiceStatus;
 using StoreData = BTCPayServer.Data.StoreData;
 
@@ -66,14 +67,12 @@ public class CashuPaymentService
     /// </summary>
     /// <param name="token">v4 Cashu Token</param>
     /// <param name="invoiceId"></param>
-    /// <param name="storeId"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     public async Task ProcessPaymentAsync(
         CashuToken token,
         string invoiceId,
-        string storeId,
         CancellationToken cancellationToken = default
         )
     {
@@ -81,9 +80,7 @@ public class CashuPaymentService
 
         var invoice = await _invoiceRepository.GetInvoice(invoiceId, true);
 
-        if (invoice == null ||
-            invoice.StoreId != storeId ||
-            invoice.Status != InvoiceStatus.New)
+        if (invoice == null)
             throw new CashuPaymentException("Invalid invoice");
                 
         var storeData = await _storeRepository.FindStore(invoice.StoreId);
@@ -137,8 +134,8 @@ public class CashuPaymentService
         
         _logs.PayServer.LogInformation(
             "(Cashu) Processing Cashu payment. Invoice: {InvoiceId}, Store: {StoreId}, Amount: {AmountSats} sat", 
-            invoiceId, 
-            storeId, 
+            invoiceId,
+            invoice.StoreId, 
             invoiceSats
         );
         
@@ -264,7 +261,7 @@ public class CashuPaymentService
                         OutputData = swapResult.ProvidedOutputs,
                         Unit = token.Unit,
                         RetryCount = 0,
-                        Details = "Conenction with mint broken while swap",
+                        Details = "Connection with mint broken while swap",
                     };
                     var pollResult = await PollFailedSwap(ftx, store, cts);
 
@@ -279,7 +276,7 @@ public class CashuPaymentService
                     }
                     
                     await AddProofsToDb(pollResult.ResultProofs!, ftx.StoreId, ftx.MintUrl);
-                    await RegisterCashuPayment(invoice, handler, tokenSatoshiWorth);
+                    await RegisterCashuPayment(invoice, handler, Money.Satoshis(tokenSatoshiWorth));
                     
 
                     break;
@@ -310,7 +307,7 @@ public class CashuPaymentService
             };
         }
         await AddProofsToDb(swapResult.ResultProofs, invoice.StoreId, token.Mint);
-        await RegisterCashuPayment(invoice, handler, tokenSatoshiWorth);
+        await RegisterCashuPayment(invoice, handler, Money.Satoshis(tokenSatoshiWorth));
     }
 
 
@@ -404,12 +401,12 @@ public class CashuPaymentService
             }
             
             
-            var amountMelted = meltQuoteResponse.Invoice.Amount.ToDecimal(LightMoneyUnit.Satoshi);
-            var overpaidFeesReturned = meltResponse.ChangeProofs?.Select(p=>p.Amount).Sum()*unitPrice??0;
+            var amountMelted = meltQuoteResponse.Invoice.Amount;
+            var overpaidFeesReturned = Money.Satoshis(meltResponse.ChangeProofs?.Select(p=>p.Amount).Sum()*unitPrice??0);
             var amountPaid =  amountMelted + overpaidFeesReturned; 
             //add overpaid ln fees proofs to the db and register payment
             await AddProofsToDb(meltResponse.ChangeProofs, store.Id, token.Mint);
-            await RegisterCashuPayment(invoice, handler, amountPaid ); 
+            await RegisterCashuPayment(invoice, handler, amountPaid); 
             
             _logs.PayServer.LogInformation(
                 "(Cashu) Melt operation success. Melted: {amountMelted} sat, Overpaid lightning fees returned: {overpaidFeesReturned} sat. Total: {total} sat", 
@@ -477,7 +474,7 @@ public class CashuPaymentService
         }
     }
     
-    public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, decimal amount)
+    public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, Money amount)
     {
         var paymentData = new PaymentData
         {
@@ -486,7 +483,7 @@ public class CashuPaymentService
             Status = PaymentStatus.Processing,
             Currency = "BTC",
             InvoiceDataId = invoice.Id,
-            Amount = amount/100000000,
+            Amount = amount.ToDecimal(MoneyUnit.BTC),
             PaymentMethodId = handler.PaymentMethodId.ToString()
         }.Set(invoice, handler, new CashuPaymentData());
         

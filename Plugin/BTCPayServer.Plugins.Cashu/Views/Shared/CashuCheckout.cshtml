@@ -1,3 +1,4 @@
+@using BTCPayServer.Plugins.Cashu.Controllers
 @model BTCPayServer.Models.InvoicingModels.CheckoutModel
 <template id="@CashuCheckoutModelExtension.CheckoutBodyComponentName">
     <div class="payment-box">
@@ -13,8 +14,6 @@
         <form id="payByTokenForm" method="POST"
               :action="pastedTokenPaymentUrl">
             <input type="hidden" name="invoiceId" value="@Model.InvoiceId"/>
-            <input type="hidden" name="returnUrl"  value="/i/@Model.InvoiceId"/>
-            <input type="hidden" name="storeId" value="@Model.StoreId"/>
             <input type="text" name="token" autofocus="autofocus" class="rounded-pill w-100 btn border-white" placeholder="Enter your cashu token..."/>
             <button id="payButton"
                     type="submit"
@@ -41,7 +40,7 @@
                 currentTab: undefined,
                 //FIXME: it SHOULD be in the model, but there's already more important payment request. Maybe use AdditionalData dictioanary?
                 
-                pastedTokenPaymentUrl: '/stores/' + this.model.StoreId + '/cashu/PayInvoice',
+                pastedTokenPaymentUrl: @Safe.Json(Url.Action(nameof(CashuController.PayByToken), "Cashu")),
                 isSubmitting: false
             };
         },
