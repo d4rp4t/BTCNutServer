@@ -496,7 +496,7 @@ public class CashuController: Controller
             return BadRequest(ex.Message);
         }
 
-        return Redirect(Url.ActionAbsolute(this.Request, nameof(UIInvoiceController.Checkout), new { invoiceId = invoiceId }).AbsoluteUri);
+        return Redirect(Url.ActionAbsolute(this.Request, nameof(UIInvoiceController.Checkout), "UIInvoice", new { invoiceId = invoiceId }).AbsoluteUri);
     }
     
     /// <summary>
