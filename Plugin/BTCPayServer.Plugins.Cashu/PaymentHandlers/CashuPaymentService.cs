@@ -404,6 +404,7 @@ public class CashuPaymentService
             var amountMelted = Money.Satoshis(meltQuoteResponse.Invoice.Amount.ToUnit(LightMoneyUnit.Satoshi));
             var overpaidFeesReturned = Money.Satoshis(meltResponse.ChangeProofs?.Select(p=>p.Amount).Sum()*unitPrice??0);
             var amountPaid =  amountMelted + overpaidFeesReturned; 
+            
             //add overpaid ln fees proofs to the db and register payment
             await AddProofsToDb(meltResponse.ChangeProofs, store.Id, token.Mint);
             await RegisterCashuPayment(invoice, handler, amountPaid); 
@@ -476,6 +477,11 @@ public class CashuPaymentService
     
     public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, Money amount)
     {
+        //set payment method fee to 0 so it won't be added to due for second time
+        var prompt = invoice.GetPaymentPrompt(CashuPlugin.CashuPmid);
+        prompt.PaymentMethodFee = 0.0m;
+        await _invoiceRepository.UpdatePrompt(invoice.Id, prompt);
+        
         var paymentData = new PaymentData
         {
             Id = Guid.NewGuid().ToString(),
