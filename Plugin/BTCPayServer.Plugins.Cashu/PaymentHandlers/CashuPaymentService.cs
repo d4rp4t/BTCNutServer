@@ -399,9 +399,9 @@ public class CashuPaymentService
                 await ctx.SaveChangesAsync();
                 throw new CashuPaymentException($"There was a problem processing your request. Please contact the merchant with corresponding invoice Id: {invoice.Id}");
             }
-            
-            
-            var amountMelted = meltQuoteResponse.Invoice.Amount;
+
+
+            var amountMelted = Money.Satoshis(meltQuoteResponse.Invoice.Amount.ToUnit(LightMoneyUnit.Satoshi));
             var overpaidFeesReturned = Money.Satoshis(meltResponse.ChangeProofs?.Select(p=>p.Amount).Sum()*unitPrice??0);
             var amountPaid =  amountMelted + overpaidFeesReturned; 
             //add overpaid ln fees proofs to the db and register payment
