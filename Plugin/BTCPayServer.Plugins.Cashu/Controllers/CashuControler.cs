@@ -74,7 +74,6 @@ public class CashuController: Controller
             model.Enabled = await _cashuStatusProvider.CashuEnabled(StoreData.Id);
             model.PaymentAcceptanceModel = CashuPaymentModel.SwapAndHodl;
             model.TrustedMintsUrls = "";
-            model.MaxPaymentAmountSats = 5_000_000;
             model.CustomerFeeAdvance = 0;
             // 2% of fee can be a lot, but it's usually returned. 
             model.MaxLightningFee = 2;
@@ -86,7 +85,6 @@ public class CashuController: Controller
             model.Enabled = await _cashuStatusProvider.CashuEnabled(StoreData.Id);
             model.PaymentAcceptanceModel = cashuPaymentMethodConfig.PaymentModel;
             model.TrustedMintsUrls = String.Join("\n", cashuPaymentMethodConfig.TrustedMintsUrls ?? [""]);
-            model.MaxPaymentAmountSats = cashuPaymentMethodConfig.MaxPaymentAmountSats;
             model.CustomerFeeAdvance = cashuPaymentMethodConfig.FeeConfing.CustomerFeeAdvance;
             model.MaxLightningFee = cashuPaymentMethodConfig.FeeConfing.MaxLightningFee;
             model.MaxKeysetFee = cashuPaymentMethodConfig.FeeConfing.MaxKeysetFee;
@@ -122,7 +120,6 @@ public class CashuController: Controller
         {
             PaymentModel = lightningEnabled ? viewModel.PaymentAcceptanceModel : CashuPaymentModel.SwapAndHodl,
             TrustedMintsUrls = parsedTrustedMintsUrls,
-            MaxPaymentAmountSats = viewModel.MaxPaymentAmountSats,
             FeeConfing = new CashuFeeConfig
             {
                 CustomerFeeAdvance = viewModel.CustomerFeeAdvance,

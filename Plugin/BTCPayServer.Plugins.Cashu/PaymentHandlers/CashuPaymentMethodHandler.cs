@@ -52,12 +52,7 @@ public class CashuPaymentMethodHandler(
         var paymentRequest =
             CashuUtils.CreatePaymentRequest(due, invoice.Id, paymentPath, cashuConfig.TrustedMintsUrls);
          context.Prompt.Destination = paymentRequest;
-
-        if (cashuConfig.MaxPaymentAmountSats < due.Satoshi)
-        {
-            throw new PaymentMethodUnavailableException("Payment amount too big!");
-        }
-        
+         
         if (cashuConfig.PaymentModel == CashuPaymentModel.MeltImmediately)
         {
             var lnConfig = lightningHandler.ParsePaymentMethodConfig(store.GetPaymentMethodConfigs()[lnPmi]);

@@ -5,15 +5,11 @@ namespace BTCPayServer.Plugins.Cashu.PaymentHandlers;
 
 public class CashuPaymentMethodConfig
 {
-    
     public CashuPaymentModel PaymentModel { get; set; }
     
     public List<string> TrustedMintsUrls { get; set; }
     
     public CashuFeeConfig FeeConfing { get; set; }
-   
-    public int MaxPaymentAmountSats { get; set; }
-   
 }
 
 public class CashuFeeConfig

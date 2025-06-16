@@ -10,9 +10,6 @@ public class CashuStoreViewModel
 
     public string TrustedMintsUrls { get; set; } // newline-separated URLs, with trailing slash remoed
     
-    //in sats
-    public int MaxPaymentAmountSats {get; set; } //since cashu is still new and I'm not the best in C# 
-
     //in percent too (I think in 1% would be normal)
     public int MaxKeysetFee { get; set; }
     
