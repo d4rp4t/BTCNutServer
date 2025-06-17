@@ -123,12 +123,18 @@ public class CashuPaymentService
             throw new CashuPaymentException("Coudldn't process the payment. Can't fetch token/satoshi rate from mint");
         }
         
-        var invoiceSats = invoice.GetPaymentPrompt(CashuPlugin.CashuPmid)?.Calculate().Due ?? invoice.Price;
+        var invoiceAmount =Money.Coins( 
+            invoice.GetPaymentPrompt(CashuPlugin.CashuPmid)?.Calculate().Due ?? invoice.Price
+        );
+        
         var simplifiedToken = CashuUtils.SimplifyToken(token);
-        var providedAmount = Math.Floor(Convert.ToDecimal(simplifiedToken.SumProofs * singleUnitSatoshiWorth));
-        if ( providedAmount < invoiceSats)
+        var providedAmount = Money.Satoshis(
+            Math.Floor(Convert.ToDecimal(simplifiedToken.SumProofs * singleUnitSatoshiWorth))
+            );
+        
+        if (providedAmount < invoiceAmount)
         {
-            _logs.PayServer.LogError("(Cashu) Insufficient token worth for invoice {invoiceId}. Expected {invoiceSats}, calculated {calculated}.", invoiceId, invoiceSats, providedAmount );
+            _logs.PayServer.LogError("(Cashu) Insufficient token worth for invoice {invoiceId}. Expected {invoiceSats}, calculated {calculated}.", invoiceId, invoiceAmount.Satoshi, providedAmount.Satoshi );
             throw new CashuPaymentException("Insufficient token value.");
         }
         
@@ -136,7 +142,7 @@ public class CashuPaymentService
             "(Cashu) Processing Cashu payment. Invoice: {InvoiceId}, Store: {StoreId}, Amount: {AmountSats} sat", 
             invoiceId,
             invoice.StoreId, 
-            invoiceSats
+            invoiceAmount.Satoshi
         );
         
         if (cashuPaymentMethodConfig.TrustedMintsUrls.Contains(simplifiedToken.Mint))
@@ -150,7 +156,7 @@ public class CashuPaymentService
                 simplifiedToken, 
                 cashuPaymentMethodConfig.FeeConfing, 
                 handler as CashuPaymentMethodHandler, 
-                providedAmount,
+                providedAmount.Satoshi,
                 cancellationToken
                 );
             return;
@@ -206,8 +212,6 @@ public class CashuPaymentService
         CancellationToken cts = default
     )
     {
-        
-        
         List<GetKeysetsResponse.KeysetItemResponse> keysets = null;
         try
         {
@@ -219,12 +223,14 @@ public class CashuPaymentService
         }
         catch (Exception ex)
         {
+            _logs.PayServer.LogError("(Cashu) Couldn't get keysets. Funds weren't spent.");
             throw new CashuPaymentException("Could not get keysets!", ex);
         }
 
         if (!CashuUtils.ValidateFees(token.Proofs, feeConfig, keysets,
                 out var keysetFee))
         {
+            _logs.PayServer.LogError("(Cashu) Keyset fees bigger than configured limit! {fee} Token wasn't spent. ", keysetFee);
             throw new CashuPaymentException("Fees too big!");
         }
         
@@ -271,14 +277,13 @@ public class CashuPaymentService
                         ftx.LastRetried = DateTimeOffset.Now.ToUniversalTime();
                         await using var db = _cashuDbContextFactory.CreateContext();
                         await db.FailedTransactions.AddAsync(ftx, cts);
+                        _logs.PayServer.LogError("(Cashu) Transaction {id} failed because of broken connection with mint. See Failed Transactions in settings.", invoice.Id);
                         await db.SaveChangesAsync(cts);
                         return;
                     }
                     
                     await AddProofsToDb(pollResult.ResultProofs!, ftx.StoreId, ftx.MintUrl);
                     await RegisterCashuPayment(invoice, handler, Money.Satoshis(tokenSatoshiWorth));
-                    
-
                     break;
                 }
             }
@@ -305,6 +310,8 @@ public class CashuPaymentService
                 RetryCount = 0,
                 Details = "Mint Returned less signatures than was requested. Even though, merchant received the payment"
             };
+            _logs.PayServer.LogError("(Cashu) Mint returned less signatures than requested for transaction {tx}. Merchant received payment, but still marked as unpaid.", invoice.Id);
+            //TODO: Pay partially
         }
         await AddProofsToDb(swapResult.ResultProofs, invoice.StoreId, token.Mint);
         await RegisterCashuPayment(invoice, handler, Money.Satoshis(tokenSatoshiWorth));
@@ -340,6 +347,7 @@ public class CashuPaymentService
         }
         catch (Exception ex)
         {
+            _logs.PayServer.LogError("(Cashu) Couldn't get keysets. Funds weren't spent.");
             throw new CashuPaymentException("Could not get keysets!", ex);
         }
         
@@ -356,6 +364,7 @@ public class CashuPaymentService
         
         if (!CashuUtils.ValidateFees(token.Proofs, feeConfig, meltQuoteResponse.KeysetFee!.Value, (ulong)meltQuoteResponse.MeltQuote!.FeeReserve))
         {
+            _logs.PayServer.LogError("(Cashu) Fees bigger than configured limit! Lightning fee: {ln}, keyset fee: {keysetfee}.", (ulong)meltQuoteResponse.MeltQuote!.FeeReserve, meltQuoteResponse.KeysetFee!.Value);
             throw new CashuPaymentException("Fees are too big.");
         }
         
@@ -367,6 +376,7 @@ public class CashuPaymentService
         );
         
         var meltResponse = await wallet.Melt(meltQuoteResponse.MeltQuote, token.Proofs);
+        
         if (meltResponse.Success)
         {
             var lnInvPaid = await wallet.ValidateLightningInvoicePaid(meltQuoteResponse.Invoice?.Id);
@@ -397,6 +407,7 @@ public class CashuPaymentService
                 await using var ctx = _cashuDbContextFactory.CreateContext();
                 ctx.FailedTransactions.Add(ftx);
                 await ctx.SaveChangesAsync();
+                _logs.PayServer.LogError("(Cashu) Mint marked melt quote as paid, but lightning invoice is still unpaid. Please verify transaction manually.");
                 throw new CashuPaymentException($"There was a problem processing your request. Please contact the merchant with corresponding invoice Id: {invoice.Id}");
             }
 
@@ -411,9 +422,9 @@ public class CashuPaymentService
             
             _logs.PayServer.LogInformation(
                 "(Cashu) Melt operation success. Melted: {amountMelted} sat, Overpaid lightning fees returned: {overpaidFeesReturned} sat. Total: {total} sat", 
-                amountMelted, 
-                overpaidFeesReturned, 
-                amountPaid
+                amountMelted.Satoshi, 
+                overpaidFeesReturned.Satoshi, 
+                amountPaid.Satoshi
             );
         }
 
@@ -467,6 +478,7 @@ public class CashuPaymentService
             }
             catch (HttpRequestException)
             {
+                _logs.PayServer.LogError("Network error occured while processing melt {txId}. Please verify transaction manually", invoice.Id);
                 await wallet.CheckTokenState(token.Proofs);
                 var db = _cashuDbContextFactory.CreateContext();
                 await db.FailedTransactions.AddAsync(ftx);
@@ -475,7 +487,7 @@ public class CashuPaymentService
         }
     }
     
-    public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, Money amount)
+    public async Task RegisterCashuPayment(InvoiceEntity invoice, CashuPaymentMethodHandler handler, Money amount, bool markPaid = true)
     {
         //set payment method fee to 0 so it won't be added to due for second time
         var prompt = invoice.GetPaymentPrompt(CashuPlugin.CashuPmid);
@@ -494,7 +506,10 @@ public class CashuPaymentService
         }.Set(invoice, handler, new CashuPaymentData());
         
         var payment = await _paymentService.AddPayment(paymentData);
-        await _invoiceRepository.MarkInvoiceStatus(invoice.Id, InvoiceStatus.Settled);
+        if (markPaid)
+        {
+            await _invoiceRepository.MarkInvoiceStatus(invoice.Id, InvoiceStatus.Settled);
+        }
     }
 
 
