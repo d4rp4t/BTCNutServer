@@ -595,4 +595,44 @@ public static class CashuUtils
         cashuToken = null;
         return false;
     }
+    
+    /// <summary>
+    /// Formating method specified in NUT-1 based on ISO 4217.
+    /// Only UI tweak, shouldn't trust mint with its unit.
+    /// </summary>
+    /// <param name="amount">Proofs amount</param>
+    /// <param name="unit">Proofs unit</param>
+    /// <returns>Formatted amount and unit</returns>
+    public static (decimal Amount, string Unit) FormatAmount(decimal amount, string unit = "sat")
+    {
+        unit = unit.ToUpperInvariant();
+
+        var bitcoinUnits = new Dictionary<string, int>
+        {
+            { "BTC", 8 },
+            { "SAT", 0 },
+            { "MSAT", 3 }
+        };
+
+        if (bitcoinUnits.TryGetValue(unit, out var minorUnit))
+        {
+            decimal adjusted = amount / (decimal)Math.Pow(10, minorUnit);
+            return (adjusted, unit);
+        }
+
+        var specialMinorUnits = new Dictionary<string, int>
+        {
+            { "BHD", 3 }, { "BIF", 0 }, { "CLF", 4 }, { "CLP", 0 }, { "DJF", 0 }, { "GNF", 0 },
+            { "IQD", 3 }, { "ISK", 0 }, { "JOD", 3 }, { "JPY", 0 }, { "KMF", 0 }, { "KRW", 0 },
+            { "KWD", 3 }, { "LYD", 3 }, { "OMR", 3 }, { "PYG", 0 }, { "RWF", 0 }, { "TND", 3 },
+            { "UGX", 0 }, { "UYI", 0 }, { "UYW", 4 }, { "VND", 0 }, { "VUV", 0 }, { "XAF", 0 },
+            { "XOF", 0 }, { "XPF", 0 }
+        };
+
+        int fiatMinor = specialMinorUnits.ContainsKey(unit) ? specialMinorUnits[unit] : 2;
+        decimal fiatAdjusted = amount / (decimal)Math.Pow(10, fiatMinor);
+
+        return (fiatAdjusted, unit);
+    }
+
 }
