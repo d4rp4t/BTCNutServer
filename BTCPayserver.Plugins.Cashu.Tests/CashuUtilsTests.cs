@@ -18,6 +18,8 @@ namespace BTCPayserver.Plugins.Cashu.Tests
 
         public Keyset testKeyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
 
+        const decimal MAX_DECIMAL = decimal.MaxValue;
+
         #region GetCashuHttpClient Tests
 
         [Fact]
@@ -1027,5 +1029,77 @@ namespace BTCPayserver.Plugins.Cashu.Tests
 
         #endregion
 
+        
+        #region FormatAmount Tests
+                
+        [Theory]
+        [InlineData(100000000, "BTC", 1)]
+        [InlineData(100, "BTC", 0.00000100)]
+        [InlineData(1, "SAT", 1)]
+        [InlineData(1000, "MSAT", 1)]
+        [InlineData(123456, "msat", 123.456)]
+        [InlineData(0, "SAT", 0)]
+        [InlineData(-100000000, "BTC", -1)]
+        public void FormatAmount_BitcoinUnits_Should_Format_Correctly(decimal input, string unit, decimal expected)
+        {
+            var (amount, returnedUnit) = CashuUtils.FormatAmount(input, unit);
+            Assert.Equal(expected, Math.Round(amount, 12));
+            Assert.Equal(unit.ToUpperInvariant(), returnedUnit);
+        }
+
+        [Theory]
+        [InlineData(1000, "BHD", 1)]
+        [InlineData(1000, "IQD", 1)]
+        [InlineData(1000, "JPY", 1000)]
+        [InlineData(123456, "CLF", 12.3456)]
+        [InlineData(123456, "UYW", 12.3456)]
+        [InlineData(123456, "XOF", 123456)]
+        [InlineData(0, "TND", 0)]
+        [InlineData(-123456, "BHD", -123.456)]
+        public void FormatAmount_SpecialFiatUnits_Should_Format_Correctly(decimal input, string unit, decimal expected)
+        {
+            var (amount, returnedUnit) = CashuUtils.FormatAmount(input, unit);
+            Assert.Equal(expected, Math.Round(amount, 6));
+            Assert.Equal(unit.ToUpperInvariant(), returnedUnit);
+        }
+
+        [Theory]
+        [InlineData(123456, "USD", 1234.56)]
+        [InlineData(123456, "eur", 1234.56)]
+        [InlineData(100, "", 1)]
+        [InlineData(100, null, 1)]
+        public void FormatAmount_UnknownOrEmptyUnit_Should_DefaultProperly(decimal input, string unit, decimal expected)
+        {
+            var (amount, returnedUnit) = CashuUtils.FormatAmount(input, unit);
+            if (string.IsNullOrEmpty(unit))
+            {
+                Assert.Equal(100, amount);
+                Assert.Equal("SAT", returnedUnit);
+            }
+            else
+            {
+                Assert.Equal(expected, Math.Round(amount, 2));
+                Assert.Equal(unit.ToUpperInvariant(), returnedUnit);
+            }
+        }
+
+        [Fact]
+        public void FormatAmount_Should_Handle_Zero_Amount_Correctly()
+        {
+            var (amount, unit) = CashuUtils.FormatAmount(0, "USD");
+            Assert.Equal(0, amount);
+            Assert.Equal("USD", unit);
+        }
+
+        [Fact]
+        public void FormatAmount_Should_Handle_MaxAndMinValues()
+        {
+            var (maxAmount, _) = CashuUtils.FormatAmount(decimal.MaxValue, "SAT");
+            Assert.Equal(decimal.MaxValue, maxAmount);
+
+            var (minAmount, _) = CashuUtils.FormatAmount(decimal.MinValue, "SAT");
+            Assert.Equal(decimal.MinValue, minAmount);
+        }
+        #endregion
     }
 }

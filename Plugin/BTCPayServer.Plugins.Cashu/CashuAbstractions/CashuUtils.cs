@@ -605,7 +605,7 @@ public static class CashuUtils
     /// <returns>Formatted amount and unit</returns>
     public static (decimal Amount, string Unit) FormatAmount(decimal amount, string unit = "sat")
     {
-        unit = unit.ToUpperInvariant();
+        unit = string.IsNullOrWhiteSpace(unit) ? "SAT" : unit.ToUpperInvariant();
 
         var bitcoinUnits = new Dictionary<string, int>
         {
