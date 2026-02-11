@@ -9,6 +9,7 @@ using BTCPayServer.Plugins.Cashu.Lightning;
 using BTCPayServer.Plugins.Cashu.PaymentHandlers;
 using BTCPayServer.Plugins.Cashu.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BTCPayServer.Plugins.Cashu;
 
@@ -61,6 +62,12 @@ public class CashuPlugin : BaseBTCPayServerPlugin
             }
         );
         services.AddHostedService<MigrationRunner>();
+        
+        // i couldn't see debug logs without it
+        #if DEBUG
+        services.Configure<LoggerFilterOptions>(opts =>
+            opts.Rules.Add(new LoggerFilterRule(null, "BTCPayServer.Plugins.Cashu", LogLevel.Debug, null)));
+        #endif
 
         base.Execute(services);
     }

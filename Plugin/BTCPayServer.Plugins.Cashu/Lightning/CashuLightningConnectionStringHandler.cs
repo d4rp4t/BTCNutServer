@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Linq;
 using BTCPayServer.Lightning;
@@ -8,20 +9,12 @@ using NBitcoin;
 
 namespace BTCPayServer.Plugins.Cashu.Lightning;
 
-public class CashuLightningConnectionStringHandler : ILightningConnectionStringHandler
+public class CashuLightningConnectionStringHandler(
+    CashuDbContextFactory dbContextFactory,
+    MintListener mintListener,
+    ILoggerFactory loggerFactory)
+    : ILightningConnectionStringHandler
 {
-    private readonly CashuDbContextFactory _dbContextFactory;
-    private readonly MintListener _mintListener;
-    private readonly ILoggerFactory _loggerFactory;
-
-    public CashuLightningConnectionStringHandler(CashuDbContextFactory dbContextFactory,
-        MintListener mintListener, ILoggerFactory loggerFactory)
-    {
-        _dbContextFactory = dbContextFactory;
-        _mintListener = mintListener;
-        _loggerFactory = loggerFactory;
-    }
-
     public ILightningClient? Create(string connectionString, Network network, out string? error)
     {
         var kv = LightningConnectionStringHelper.ExtractValues(connectionString, out var type);
@@ -65,7 +58,7 @@ public class CashuLightningConnectionStringHandler : ILightningConnectionStringH
         }
 
         error = null;
-        return new CashuLightningClient(uri, storeId, _dbContextFactory, _mintListener, network,
-            _loggerFactory.CreateLogger<CashuLightningClient>());
+        return new CashuLightningClient(uri, storeId, dbContextFactory, mintListener, network,
+            loggerFactory.CreateLogger<CashuLightningClient>());
     }
 }

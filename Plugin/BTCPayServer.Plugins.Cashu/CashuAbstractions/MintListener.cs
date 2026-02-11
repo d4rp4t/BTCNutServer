@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
@@ -20,7 +21,7 @@ namespace BTCPayServer.Plugins.Cashu.CashuAbstractions;
 public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintListener> logger)
     : IHostedService, IDisposable
 {
-    private readonly WebsocketService _wsService = new(new WebsocketServiceOptions { AutoReconnect = true });
+    private readonly WebsocketService _wsService = new(new WebsocketServiceOptions { AutoReconnect = false });
     private readonly ConcurrentDictionary<string, (Subscription Sub, CancellationTokenSource Cts)> _activeSubscriptions = new();
     private readonly ConcurrentDictionary<string, CashuListenerRegistration> _listeners = new();
     private readonly ConcurrentDictionary<string, byte> _mintingQuotes = new();
@@ -30,6 +31,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        logger.LogDebug("MintListener starting...");
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _backgroundTask = Task.Run(() => RecoverAndRunAsync(_cts.Token), _cts.Token);
         _expiryTimer = new Timer(_ => _ = CleanupExpiredQuotesAsync(), null,
@@ -117,12 +119,20 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             logger.LogDebug("Unregistered listener {Id}", registrationId);
         }
     }
-
+    
+    
     /// <summary>
-    /// recovery: re-subscribe to all active quotes (UNPAID, PAID).
-    /// the mint responds with the current state as the first WS notification,
+    /// recovery:
+    /// mint paid quotes
+    /// re-subscribe to all active quotes (UNPAID).
+    /// mark expired quotes as EXPIRED
+    /// 
+    /// the mint responds with the current state as the first ws notification,
     /// so HandleNotificationAsync will update the DB and mint tokens if needed.
     /// PAID quotes are included because they may have failed to mint tokens before shutdown.
+    ///
+    /// make sure that lightning payment is marked as paid only after the proofs are minted
+    /// otherwise the balance may get fucked up (e.g. network errors)
     /// </summary>
     private async Task RecoverAndRunAsync(CancellationToken ct)
     {
@@ -140,6 +150,14 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                 if (payment.QuoteState is "UNPAID" && payment.Expiry <= DateTimeOffset.UtcNow)
                 {
                     payment.QuoteState = "EXPIRED";
+                    continue;
+                }
+
+                if (payment.QuoteState is "PAID")
+                {
+                    // network call - make sure it's not blocking anything.
+                    // maybe a queue for mints?
+                    await MintQuoteAsync(payment, ct);
                     continue;
                 }
                 
@@ -187,15 +205,18 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                 entry.Cts.Dispose();
             }
             await subscription.DisposeAsync();
-            
+
+            // disconnect from mint if no more active subscriptions
+            var mintUrl = key.Split('|', 2)[0];
+            if (!_activeSubscriptions.Keys.Any(k => k.StartsWith(mintUrl)))
+            {
+                await _wsService.DisconnectAsync(mintUrl);
+            }
+
             if (!reachedTerminalState && !ct.IsCancellationRequested)
             {
-                var parts = key.Split('|', 2);
-                if (parts.Length == 2)
-                {
-                    logger.LogDebug("Re-subscribing to {Key} after connection loss", key);
-                    await SubscribeQuoteAsync(parts[0], parts[1], ct);
-                }
+                logger.LogDebug("Re-subscribing to {Key} after connection loss", key);
+                await SubscribeQuoteAsync(mintUrl, key.Split('|', 2)[1], ct);
             }
         }
     }
@@ -246,6 +267,24 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             if (state is "PAID")
             {
                 await MintQuoteAsync(payment, ct);
+
+                // re-read after minting - MintQuoteAsync updates state to ISSUED in a separate DbContext
+                await using var dbAfterMint = dbContextFactory.CreateContext();
+                var updated = await dbAfterMint.LightningInvoices
+                    .FirstOrDefaultAsync(p => p.QuoteId == quoteId, ct);
+
+                if (updated is { QuoteState: "ISSUED" })
+                {
+                    var issuedInvoice = updated.ToLightningInvoice();
+                    foreach (var listener in _listeners.Values)
+                    {
+                        if (listener.StoreId == updated.StoreId &&
+                            listener.MintUrl == updated.Mint)
+                        {
+                            await listener.NotificationChannel.Writer.WriteAsync(issuedInvoice, ct);
+                        }
+                    }
+                }
             }
 
             return state is "PAID" or "ISSUED";
@@ -308,6 +347,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                         return; 
 
                     tracked.QuoteState = "ISSUED";
+                    tracked.PaidAt ??= DateTimeOffset.UtcNow;
                     db.Proofs.AddRange(StoredProof.FromBatch(proofs, payment.StoreId, ProofState.Available));
                     await db.SaveChangesAsync(ct);
 
@@ -343,6 +383,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         try
         {
             await using var db = dbContextFactory.CreateContext();
+            // only unpaid quotes can be expired.
             var expired = await db.LightningInvoices
                 .Where(p => p.QuoteState == "UNPAID" && p.Expiry <= DateTimeOffset.UtcNow)
                 .ToListAsync();
@@ -378,7 +419,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             logger.LogDebug(ex, "Error during periodic cleanup");
         }
     }
-
+    
     public void Dispose()
     {
         _expiryTimer?.Dispose();
