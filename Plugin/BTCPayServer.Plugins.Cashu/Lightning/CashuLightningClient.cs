@@ -1,57 +1,47 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data;
+using BTCPayServer.Plugins.Cashu.Data.enums;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using DotNut;
 using DotNut.Abstractions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using NBitcoin;
 
 namespace BTCPayServer.Plugins.Cashu.Lightning;
 
-public class CashuLightningClient : ILightningClient
+public class CashuLightningClient(
+    Uri mintUrl,
+    string storeId,
+    CashuDbContextFactory dbContextFactory,
+    MintListener mintListener,
+    Network network)
+    : ILightningClient
 {
-    private readonly Uri _mintUrl;
-    private readonly string _storeId;
-    private readonly CashuDbContextFactory _dbContextFactory;
-    private readonly MintListener _mintListener;
-    private readonly Network _network;
-    private readonly ILogger _logger;
-
-    public CashuLightningClient(Uri mintUrl, string storeId, CashuDbContextFactory dbContextFactory,
-        MintListener mintListener, Network network, ILogger logger)
-    {
-        _mintUrl = mintUrl;
-        _storeId = storeId;
-        _dbContextFactory = dbContextFactory;
-        _mintListener = mintListener;
-        _network = network;
-        _logger = logger;
-    }
-
+    public string? DisplayName => "Cashu";
+    
     public override string ToString()
     {
-        return $"type=cashu;mint-url={_mintUrl};store-id={_storeId};";
+        return $"type=cashu;mint-url={mintUrl};store-id={storeId};";
     }
 
     public async Task<LightningInvoice> CreateInvoice(LightMoney amount, string description, TimeSpan expiry,
         CancellationToken cancellation = default)
     {
         
-        await using var db = _dbContextFactory.CreateContext(); 
+        await using var db = dbContextFactory.CreateContext();
         //todo make sure to secure it somehow. i don't feel like knowing storeID is a right way to authorize xD
-        var walletConfig = db.CashuWalletConfig.Single(w => w.StoreId == _storeId);
-        int i = 0;
+        var walletConfig = db.CashuWalletConfig.Single(w => w.StoreId == storeId);
         using var wallet = Wallet
             .Create()
-            .WithMint(_mintUrl)
+            .WithMint(mintUrl)
             .WithMnemonic(walletConfig.WalletMnemonic)
-            .WithCounter(new DbCounter(_dbContextFactory, _storeId));
+            .WithCounter(new DbCounter(dbContextFactory, storeId));
         
         var satAmount =
             decimal.ToUInt64(
@@ -69,7 +59,7 @@ public class CashuLightningClient : ILightningClient
             .ProcessAsyncBolt11(cancellation);
         var quote = mintHandler.GetQuote();
 
-        if (!BOLT11PaymentRequest.TryParse(quote.Request, out var bolt11, _network))
+        if (!BOLT11PaymentRequest.TryParse(quote.Request, out var bolt11, network))
         {
             throw new Exception($"Failed to parse BOLT11 from mint quote: {quote.Request}");
         }
@@ -80,8 +70,8 @@ public class CashuLightningClient : ILightningClient
         var outputs = mintHandler.GetOutputs();
         var invoice = new CashuLightningClientInvoice
         {
-            StoreId = _storeId,
-            Mint = _mintUrl.ToString().TrimEnd('/'),
+            StoreId = storeId,
+            Mint = mintUrl.ToString().TrimEnd('/'),
             QuoteId = quote.Quote,
             InvoiceId = invoiceId,
             KeysetId = outputs[0].BlindedMessage.Id,
@@ -98,7 +88,7 @@ public class CashuLightningClient : ILightningClient
         db.LightningInvoices.Add(invoice);
         await db.SaveChangesAsync(cancellation);
 
-        await _mintListener.SubscribeQuoteAsync(
+        await mintListener.SubscribeQuoteAsync(
             invoice.Mint, invoice.QuoteId, cancellation);
 
         return invoice.ToLightningInvoice();
@@ -114,9 +104,9 @@ public class CashuLightningClient : ILightningClient
     public async Task<LightningInvoice> GetInvoice(string invoiceId,
         CancellationToken cancellation = default)
     {
-        await using var db = _dbContextFactory.CreateContext();
+        await using var db = dbContextFactory.CreateContext();
         var payment = await db.LightningInvoices
-            .FirstOrDefaultAsync(p => p.InvoiceId == invoiceId && p.StoreId == _storeId, cancellation);
+            .FirstOrDefaultAsync(p => p.InvoiceId == invoiceId && p.StoreId == storeId, cancellation);
 
         return payment?.ToLightningInvoice();
     }
@@ -129,7 +119,7 @@ public class CashuLightningClient : ILightningClient
 
     public Task<ILightningInvoiceListener> Listen(CancellationToken cancellation = default)
     {
-        var listener = new CashuListener(_mintListener, _storeId, _mintUrl.ToString().TrimEnd('/'));
+        var listener = new CashuListener(mintListener, storeId, mintUrl.ToString().TrimEnd('/'));
         return Task.FromResult<ILightningInvoiceListener>(listener);
     }
 
@@ -141,9 +131,9 @@ public class CashuLightningClient : ILightningClient
     public async Task<LightningInvoice[]> ListInvoices(ListInvoicesParams request,
         CancellationToken cancellation = default)
     {
-        await using var db =  _dbContextFactory.CreateContext();
+        await using var db =  dbContextFactory.CreateContext();
         var invoices = db.LightningInvoices
-            .Where(s => s.StoreId == _storeId);
+            .Where(s => s.StoreId == storeId);
         
         // it seems like blink plugin also doesn't support offset..
 
@@ -152,13 +142,16 @@ public class CashuLightningClient : ILightningClient
             invoices = invoices.Where(i => i.Status == LightningInvoiceStatus.Unpaid);
         }
         
-        return invoices.Select(i => i.ToLightningInvoice()).ToArray();
+        return await invoices.Select(i => i.ToLightningInvoice()).ToArrayAsync(cancellation);
     }
 
-    public Task<LightningPayment> GetPayment(string paymentHash,
+    public async Task<LightningPayment> GetPayment(string paymentHash,
         CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        await using var db = dbContextFactory.CreateContext();
+        var payment = await db.LightningPayments
+            .FirstOrDefaultAsync(p => p.PaymentHash == paymentHash && p.StoreId == storeId, cancellation);
+        return payment?.ToLightningPayment();
     }
 
     public Task<LightningPayment[]> ListPayments(CancellationToken cancellation = default)
@@ -166,22 +159,30 @@ public class CashuLightningClient : ILightningClient
         return ListPayments(new ListPaymentsParams(), cancellation);
     }
 
-    public Task<LightningPayment[]> ListPayments(ListPaymentsParams request,
+    public async Task<LightningPayment[]> ListPayments(ListPaymentsParams request,
         CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        await using var db = dbContextFactory.CreateContext();
+        var payments = db.LightningPayments.Where(p => p.StoreId == storeId);
+
+        if (request.IncludePending is false)
+            payments = payments.Where(p => p.QuoteState == "PAID");
+
+        return await payments.Select(p => p.ToLightningPayment()).ToArrayAsync(cancellation);
     }
 
 
 
     public async Task<LightningNodeBalance> GetBalance(CancellationToken cancellation = default)
     {
-        await using var db = _dbContextFactory.CreateContext();
-        var wallet = Wallet.Create().WithMint(_mintUrl);
+        await using var db = dbContextFactory.CreateContext();
+        var wallet = Wallet.Create().WithMint(mintUrl);
         var keysets = await wallet.GetKeysets(false, cancellation);
-        var keysetIds = keysets.Select(k => k.Id);
+        var keysetIdStrings = keysets.Select(k => k.Id.ToString()).ToList();
         var amount = db.Proofs
-            .Where(p => p.StoreId == _storeId && keysetIds.Contains(p.Id))
+            .Where(p => p.StoreId == storeId
+                        && p.Status == ProofState.Available
+                        && keysetIdStrings.Contains(p.Id.ToString()))
             .Select(p => p.Amount).AsEnumerable()
             .Sum();
 
@@ -197,18 +198,177 @@ public class CashuLightningClient : ILightningClient
     public Task<PayResponse> Pay(PayInvoiceParams payParams,
         CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Pay(null, payParams, cancellation);
     }
 
-    public Task<PayResponse> Pay(string bolt11, PayInvoiceParams payParams,
+    public async Task<PayResponse> Pay(string bolt11, PayInvoiceParams payParams,
         CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        var payLock = mintListener.GetPayLock(storeId);
+        await payLock.WaitAsync(cancellation);
+        try
+        {
+            return await PayLockedAsync(bolt11, cancellation);
+        }
+        finally
+        {
+            payLock.Release();
+        }
+    }
+
+    private async Task<PayResponse> PayLockedAsync(string bolt11, CancellationToken cancellation)
+    {
+        await using var db = dbContextFactory.CreateContext();
+        var config = db.CashuWalletConfig.SingleOrDefault(w => w.StoreId == storeId);
+        if (config == null)
+            throw new InvalidOperationException($"Could not fetch cashu wallet config for storeId: {storeId}");
+
+        // create melt quote 
+        using var wallet = Wallet
+            .Create()
+            .WithMint(mintUrl)
+            .WithMnemonic(config.WalletMnemonic)
+            .WithCounter(new DbCounter(dbContextFactory, storeId));
+
+        var handler = await wallet
+            .CreateMeltQuote()
+            .WithInvoice(bolt11)
+            .ProcessAsyncBolt11(cancellation);
+        var quote = handler.GetQuote();
+
+        if (!BOLT11PaymentRequest.TryParse(bolt11, out var bolt11Parsed, network))
+            throw new Exception($"Failed to parse BOLT11: {bolt11}");
+        var paymentHash = bolt11Parsed.PaymentHash?.ToString()
+            ?? throw new Exception("BOLT11 missing payment hash");
+
+        // Save payment record before touching proofs — enables crash recovery.
+        // QuoteState starts as "PENDING"; updated to "PAID" after successful melt.
+        // If we crash mid-melt, MintListener polls CheckMeltQuote to finalize or rollback.
+        var payment = new CashuLightningClientPayment
+        {
+            StoreId = storeId,
+            Mint = mintUrl.ToString().TrimEnd('/'),
+            QuoteId = quote.Quote,
+            QuoteState = "PENDING",
+            PaymentHash = paymentHash,
+            Bolt11 = bolt11,
+            Amount = LightMoney.Satoshis((long)quote.Amount),
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        db.LightningPayments.Add(payment);
+        await db.SaveChangesAsync(cancellation);
+
+        var dbProofs = db.Proofs
+            .Where(p => p.StoreId == storeId && p.Status == ProofState.Available)
+            .ToList();
+        var dotNutProofs = dbProofs.Select(p => p.ToDotNutProof()).ToList();
+        var proofMap = dbProofs
+            .Zip(dotNutProofs, (dbProof, proof) => (dbProof, proof))
+            .ToDictionary(x => x.proof, x => x.dbProof);
+
+        var targetAmount = quote.Amount + (ulong)quote.FeeReserve;
+        var sendResponse = await wallet.SelectProofsToSend(
+            dotNutProofs, targetAmount, true, cancellation);
+        var selectedTotal = sendResponse.Send.Aggregate(0UL, (acc, p) => acc + p.Amount);
+
+        foreach (var proof in sendResponse.Send)
+        {
+            proofMap[proof].Status = ProofState.Reserved;
+            proofMap[proof].CashuLightningClientPaymentId = payment.Id;
+        }
+        await db.SaveChangesAsync(cancellation);
+
+        List<Proof> changeProofs;
+
+        if (selectedTotal > targetAmount)
+        {
+            var denominationLoss = selectedTotal - targetAmount;
+            var keysets = await wallet.GetKeysets(false, cancellation);
+            var keysetFees = keysets.ToDictionary(k => k.Id, k => k.InputFee ?? 0UL);
+            var swapFeeEstimate = sendResponse.Send.ComputeFee(keysetFees);
+
+            if (denominationLoss > swapFeeEstimate)
+            {
+                var swapped = await wallet.Swap()
+                    .FromInputs(sendResponse.Send)
+                    .ProcessAsync(cancellation);
+
+                var split = await wallet.SelectProofsToSend(swapped, targetAmount, false, cancellation);
+
+                foreach (var proof in sendResponse.Send)
+                    proofMap[proof].Status = ProofState.Spent;
+
+                var toMeltStored = StoredProof
+                    .FromBatch(split.Send, storeId, ProofState.Reserved, payment.Id).ToList();
+                db.Proofs.AddRange(toMeltStored);
+                if (split.Keep.Count > 0)
+                    db.Proofs.AddRange(StoredProof.FromBatch(split.Keep, storeId, ProofState.Available));
+                await db.SaveChangesAsync(cancellation);
+
+                try
+                {
+                    changeProofs = await handler.Melt(split.Send, cancellation);
+                }
+                catch (Exception) when (cancellation.IsCancellationRequested is false)
+                {
+                    mintListener.TrackPendingPayment(payment.Id);
+                    throw;
+                }
+
+                foreach (var stored in toMeltStored)
+                    stored.Status = ProofState.Spent;
+                if (changeProofs.Count > 0)
+                    db.Proofs.AddRange(StoredProof.FromBatch(changeProofs, storeId, ProofState.Available));
+
+                var meltFee = targetAmount
+                              - changeProofs.Aggregate(0UL, (acc, p) => acc + p.Amount)
+                              - quote.Amount;
+                payment.QuoteState = "PAID";
+                payment.PaidAt = DateTimeOffset.UtcNow;
+                payment.FeeAmount = LightMoney.Satoshis((long)meltFee);
+                await db.SaveChangesAsync(cancellation);
+
+                return new PayResponse
+                {
+                    Result = PayResult.Ok,
+                    Details = new() { FeeAmount = LightMoney.Satoshis((long)meltFee) }
+                };
+            }
+        }
+
+        try
+        {
+            changeProofs = await handler.Melt(sendResponse.Send, cancellation);
+        }
+        catch (Exception) when (cancellation.IsCancellationRequested is false)
+        {
+            mintListener.TrackPendingPayment(payment.Id);
+            throw;
+        }
+
+        foreach (var proof in sendResponse.Send)
+            proofMap[proof].Status = ProofState.Spent;
+        if (changeProofs.Count > 0)
+            db.Proofs.AddRange(StoredProof.FromBatch(changeProofs, storeId, ProofState.Available));
+
+        var fee = targetAmount
+                  - changeProofs.Aggregate(0UL, (acc, p) => acc + p.Amount)
+                  - quote.Amount;
+        payment.QuoteState = "PAID";
+        payment.PaidAt = DateTimeOffset.UtcNow;
+        payment.FeeAmount = LightMoney.Satoshis((long)fee);
+        await db.SaveChangesAsync(cancellation);
+
+        return new PayResponse
+        {
+            Result = PayResult.Ok,
+            Details = new() { FeeAmount = LightMoney.Satoshis((long)fee) }
+        };
     }
 
     public Task<PayResponse> Pay(string bolt11, CancellationToken cancellation = default)
     {
-        throw new NotImplementedException();
+        return Pay(bolt11, new PayInvoiceParams(), cancellation);
     }
 
     /*

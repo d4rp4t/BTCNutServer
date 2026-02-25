@@ -4,15 +4,13 @@ using System.Linq;
 using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data;
-using Microsoft.Extensions.Logging;
 using NBitcoin;
 
 namespace BTCPayServer.Plugins.Cashu.Lightning;
 
 public class CashuLightningConnectionStringHandler(
     CashuDbContextFactory dbContextFactory,
-    MintListener mintListener,
-    ILoggerFactory loggerFactory)
+    MintListener mintListener)
     : ILightningConnectionStringHandler
 {
     public ILightningClient? Create(string connectionString, Network network, out string? error)
@@ -58,7 +56,6 @@ public class CashuLightningConnectionStringHandler(
         }
 
         error = null;
-        return new CashuLightningClient(uri, storeId, dbContextFactory, mintListener, network,
-            loggerFactory.CreateLogger<CashuLightningClient>());
+        return new CashuLightningClient(uri, storeId, dbContextFactory, mintListener, network);
     }
 }

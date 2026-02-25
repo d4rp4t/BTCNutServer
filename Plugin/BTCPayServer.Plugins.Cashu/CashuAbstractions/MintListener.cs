@@ -25,16 +25,18 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     private readonly ConcurrentDictionary<string, (Subscription Sub, CancellationTokenSource Cts)> _activeSubscriptions = new();
     private readonly ConcurrentDictionary<string, CashuListenerRegistration> _listeners = new();
     private readonly ConcurrentDictionary<string, byte> _mintingQuotes = new();
+    private readonly ConcurrentDictionary<Guid, byte> _pendingPayments = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _payLocks = new();
     private CancellationTokenSource? _cts;
     private Task? _backgroundTask;
     private Timer? _expiryTimer;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        logger.LogDebug("MintListener starting...");
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _backgroundTask = Task.Run(() => RecoverAndRunAsync(_cts.Token), _cts.Token);
-        _expiryTimer = new Timer(_ => _ = CleanupExpiredQuotesAsync(), null,
+        _backgroundTask = Task.Run(() => RecoverAsync(_cts.Token), _cts.Token);
+        _expiryTimer = new Timer(_ => _ = 
+                CleanupExpiredQuotesAsync(), null,
             TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
         return Task.CompletedTask;
     }
@@ -42,23 +44,16 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         if (_cts != null)
-        {
             await _cts.CancelAsync();
-        }
 
         if (_backgroundTask != null)
         {
-            try
-            {
-                await _backgroundTask;
-            }
+            try { await _backgroundTask; }
             catch (OperationCanceledException) { }
         }
 
         foreach (var registration in _listeners.Values)
-        {
             registration.NotificationChannel.Writer.TryComplete();
-        }
 
         foreach (var (sub, subCts) in _activeSubscriptions.Values)
         {
@@ -95,7 +90,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             logger.LogDebug(ex, "Failed to subscribe to quote {QuoteId} on {Mint}", quoteId, mintUrl);
         }
     }
-    
+
     public CashuListenerRegistration RegisterListener(string storeId, string mintUrl)
     {
         var registration = new CashuListenerRegistration
@@ -110,7 +105,15 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             registration.Id, storeId, mintUrl);
         return registration;
     }
-    
+
+    public void TrackPendingPayment(Guid paymentId)
+    {
+        _pendingPayments.TryAdd(paymentId, 0);
+    }
+
+    public SemaphoreSlim GetPayLock(string storeId) =>
+        _payLocks.GetOrAdd(storeId, _ => new SemaphoreSlim(1, 1));
+
     public void UnregisterListener(string registrationId)
     {
         if (_listeners.TryRemove(registrationId, out var registration))
@@ -122,49 +125,62 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     
     
     /// <summary>
-    /// recovery:
-    /// mint paid quotes
-    /// re-subscribe to all active quotes (UNPAID).
-    /// mark expired quotes as EXPIRED
-    /// 
-    /// the mint responds with the current state as the first ws notification,
-    /// so HandleNotificationAsync will update the DB and mint tokens if needed.
-    /// PAID quotes are included because they may have failed to mint tokens before shutdown.
-    ///
-    /// make sure that lightning payment is marked as paid only after the proofs are minted
-    /// otherwise the balance may get fucked up (e.g. network errors)
+    ///  recover all non-terminal quotes.
+    /// - UNPAID: subscribe via WS - mint sends current state as first notification --> check if there's nothing new
+    /// - PAID: lightning was paid but tokens weren't minted yet --> mint em
+    /// - ISSUED with no proofs: crash between mint API response and DB save --> signature recovery
     /// </summary>
-    private async Task RecoverAndRunAsync(CancellationToken ct)
+    private async Task RecoverAsync(CancellationToken ct)
     {
         try
         {
             await using var db = dbContextFactory.CreateContext();
-            var activePayments = await db.LightningInvoices
-                .Where(p => p.QuoteState == "UNPAID" || p.QuoteState == "PAID")
+            var quotes = await db.LightningInvoices
+                .Where(p => p.QuoteState == "UNPAID"
+                         || p.QuoteState == "PAID"
+                         || (p.QuoteState == "ISSUED" && p.Proofs == null))
                 .ToListAsync(ct);
 
-            logger.LogInformation("MintListener recovering {Count} active quotes", activePayments.Count);
+            // pending melt payments
+            var pendingPayments = await db.LightningPayments
+                .Where(p => p.QuoteState == "PENDING")
+                .ToListAsync(ct);
+            foreach (var p in pendingPayments)
+                _pendingPayments.TryAdd(p.Id, 0);
+            if (pendingPayments.Count > 0)
+                logger.LogDebug("MintListener tracking {Count} pending melt payments", pendingPayments.Count);
 
-            foreach (var payment in activePayments)
+            if (quotes.Count == 0)
+                return;
+
+            logger.LogDebug("MintListener recovering {Count} quotes", quotes.Count);
+
+            foreach (var quote in quotes)
             {
-                if (payment.QuoteState is "UNPAID" && payment.Expiry <= DateTimeOffset.UtcNow)
+                try
                 {
-                    payment.QuoteState = "EXPIRED";
-                    continue;
-                }
+                    switch (quote.QuoteState)
+                    {
+                        case "PAID":
+                            await MintAndSaveProofsAsync(db, quote, ct);
+                            break;
 
-                if (payment.QuoteState is "PAID")
-                {
-                    // network call - make sure it's not blocking anything.
-                    // maybe a queue for mints?
-                    await MintQuoteAsync(payment, ct);
-                    continue;
+                        case "ISSUED":
+                            await RecoverProofsAsync(db, quote, ct);
+                            break;
+
+                        default:
+                            await SubscribeQuoteAsync(quote.Mint, quote.QuoteId, ct);
+                            break;
+                    }
                 }
-                
-                await SubscribeQuoteAsync(payment.Mint, payment.QuoteId, ct);
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Recovery failed for quote {QuoteId}, will retry next startup",
+                        quote.QuoteId);
+                }
             }
-
-            await db.SaveChangesAsync(ct);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
@@ -172,7 +188,8 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             logger.LogDebug(ex, "MintListener recovery failed");
         }
     }
-    
+
+
     private async Task ReadSubscriptionAsync(string key, Subscription subscription, CancellationToken ct)
     {
         var reachedTerminalState = false;
@@ -181,16 +198,11 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             await foreach (var msg in subscription.ReadAllAsync(ct))
             {
                 if (msg is not WsMessage.Notification notification)
-                {
                     continue;
-                }
-                var terminal = await HandleNotificationAsync(key, notification.Value, ct);
-                if (!terminal)
-                {
-                    continue;
-                }
-                reachedTerminalState = true;
-                break;
+
+                reachedTerminalState = await HandleNotificationAsync(key, notification.Value, ct);
+                if (reachedTerminalState)
+                    break;
             }
         }
         catch (OperationCanceledException) { }
@@ -201,17 +213,13 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         finally
         {
             if (_activeSubscriptions.TryRemove(key, out var entry))
-            {
                 entry.Cts.Dispose();
-            }
+
             await subscription.DisposeAsync();
 
-            // disconnect from mint if no more active subscriptions
             var mintUrl = key.Split('|', 2)[0];
             if (!_activeSubscriptions.Keys.Any(k => k.StartsWith(mintUrl)))
-            {
-                await _wsService.DisconnectAsync(mintUrl);
-            }
+                await _wsService.DisconnectAsync(mintUrl, ct);
 
             if (!reachedTerminalState && !ct.IsCancellationRequested)
             {
@@ -227,64 +235,33 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         try
         {
             var payload = NotificationParser.ParsePayload<PostMintQuoteBolt11Response>(notification);
-            if (payload == null) return false;
+            if (payload is null || string.IsNullOrEmpty(payload.Quote))
+                return false;
 
             var state = payload.State;
             var quoteId = payload.Quote;
-
-            if (string.IsNullOrEmpty(quoteId)) return false;
 
             await using var db = dbContextFactory.CreateContext();
             var payment = await db.LightningInvoices
                 .FirstOrDefaultAsync(p => p.QuoteId == quoteId, ct);
 
-            if (payment == null)
+            if (payment is null)
             {
-                logger.LogDebug("Received notification for unknown quote {QuoteId}", quoteId);
+                logger.LogDebug("Notification for unknown quote {QuoteId}", quoteId);
                 return false;
             }
-            
-            if (payment.QuoteState is "ISSUED")
+
+            if (payment.QuoteState is "ISSUED" && payment.Proofs is not null)
                 return true;
-            
+
             payment.QuoteState = state!;
-            if (state is "ISSUED")
-            {
-                payment.PaidAt ??= DateTimeOffset.UtcNow;
-            }
             await db.SaveChangesAsync(ct);
 
-            var invoice = payment.ToLightningInvoice();
-            foreach (var listener in _listeners.Values)
-            {
-                if (listener.StoreId == payment.StoreId &&
-                    listener.MintUrl == payment.Mint)
-                {
-                    await listener.NotificationChannel.Writer.WriteAsync(invoice, ct);
-                }
-            }
-            
             if (state is "PAID")
             {
-                await MintQuoteAsync(payment, ct);
-
-                // re-read after minting - MintQuoteAsync updates state to ISSUED in a separate DbContext
-                await using var dbAfterMint = dbContextFactory.CreateContext();
-                var updated = await dbAfterMint.LightningInvoices
-                    .FirstOrDefaultAsync(p => p.QuoteId == quoteId, ct);
-
-                if (updated is { QuoteState: "ISSUED" })
-                {
-                    var issuedInvoice = updated.ToLightningInvoice();
-                    foreach (var listener in _listeners.Values)
-                    {
-                        if (listener.StoreId == updated.StoreId &&
-                            listener.MintUrl == updated.Mint)
-                        {
-                            await listener.NotificationChannel.Writer.WriteAsync(issuedInvoice, ct);
-                        }
-                    }
-                }
+                var minted = await MintAndSaveProofsAsync(db, payment, ct);
+                if (minted)
+                    NotifyListeners(payment);
             }
 
             return state is "PAID" or "ISSUED";
@@ -297,17 +274,20 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         }
     }
 
+
     /// <summary>
-    /// mint tokens for a PAID quote with retry and save.
-    /// on success: saves proofs + updates QuoteState to ISSUED in a single DB operation.
-    /// on failure: QuoteState stays PAID — recovery will retry on next startup.
+    /// mint tokens for a PAID quote.
+    /// on success: sets ISSUED + saves proofs.
+    /// on failure: state stays PAID — recovery will retry on next startup.
     /// </summary>
-    private async Task MintQuoteAsync(CashuLightningClientInvoice payment, CancellationToken ct)
+    /// <returns>true if proofs were minted and saved</returns>
+    private async Task<bool> MintAndSaveProofsAsync(
+        CashuDbContext db, CashuLightningClientInvoice payment, CancellationToken ct)
     {
         if (!_mintingQuotes.TryAdd(payment.QuoteId, 0))
         {
-            logger.LogDebug("Quote {QuoteId} is already being minted by another task", payment.QuoteId);
-            return;
+            logger.LogDebug("Quote {QuoteId} is already being minted", payment.QuoteId);
+            return false;
         }
 
         try
@@ -315,7 +295,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             const int maxAttempts = 3;
             var delay = TimeSpan.FromSeconds(2);
 
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
                 try
                 {
@@ -331,35 +311,25 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                     var keys = await wallet.GetKeys(payment.KeysetId, true, false, ct);
 
                     if (keys is null)
-                        throw new InvalidOperationException("Keyset not found for " + payment.KeysetId);
+                        throw new InvalidOperationException($"Keyset not found: {payment.KeysetId}");
 
                     var proofs = Utils.ConstructProofsFromPromises(
-                        promises.Signatures.ToList(),
-                        payment.OutputData,
-                        keys.Keys
-                    );
+                        promises.Signatures.ToList(), payment.OutputData, keys.Keys);
 
-                    await using var db = dbContextFactory.CreateContext();
-                    var tracked = await db.LightningInvoices
-                        .FirstOrDefaultAsync(p => p.QuoteId == payment.QuoteId, ct);
-
-                    if (tracked is null || tracked.QuoteState is "ISSUED")
-                        return; 
-
-                    tracked.QuoteState = "ISSUED";
-                    tracked.PaidAt ??= DateTimeOffset.UtcNow;
-                    db.Proofs.AddRange(StoredProof.FromBatch(proofs, payment.StoreId, ProofState.Available));
+                    payment.QuoteState = "ISSUED";
+                    payment.PaidAt ??= DateTimeOffset.UtcNow;
+                    payment.Proofs = StoredProof
+                        .FromBatch(proofs, payment.StoreId, ProofState.Available).ToList();
                     await db.SaveChangesAsync(ct);
 
                     logger.LogDebug("Minted and saved proofs for quote {QuoteId}", payment.QuoteId);
-                    return;
+                    return true;
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) when (attempt < maxAttempts)
                 {
-                    logger.LogDebug(ex,
-                        "Mint attempt {Attempt}/{Max} failed for quote {QuoteId}, retrying in {Delay}s",
-                        attempt, maxAttempts, payment.QuoteId, delay.TotalSeconds);
+                    logger.LogDebug(ex, "Mint attempt {Attempt}/{Max} failed for {QuoteId}, retrying",
+                        attempt, maxAttempts, payment.QuoteId);
                     await Task.Delay(delay, ct);
                     delay *= 2;
                 }
@@ -368,22 +338,58 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            logger.LogDebug(ex,
-                "Failed to mint tokens for quote {QuoteId} after all retries. " +
-                "QuoteState remains PAID — recovery will retry.", payment.QuoteId);
+            logger.LogDebug(ex, "Failed to mint quote {QuoteId} after all retries", payment.QuoteId);
         }
         finally
         {
             _mintingQuotes.TryRemove(payment.QuoteId, out _);
         }
+
+        return false;
     }
+
+    /// <summary>
+    /// recover proofs for an ISSUED quote where proofs weren't saved
+    /// </summary>
+    private async Task RecoverProofsAsync(
+        CashuDbContext db, CashuLightningClientInvoice payment, CancellationToken ct)
+    {
+        using var api = CashuUtils.GetCashuHttpClient(payment.Mint);
+
+        var req = new PostRestoreRequest
+        {
+            Outputs = payment.OutputData.Select(o => o.BlindedMessage).ToArray(),
+        };
+        var res = await api.Restore(req, ct);
+
+        var returnedOutputs = new List<OutputData>();
+        foreach (var output in res.Outputs)
+        {
+            var match = payment.OutputData.SingleOrDefault(o => Equals(o.BlindedMessage.B_, output.B_));
+            if (match is not null)
+                returnedOutputs.Add(match);
+        }
+
+        var keyset = await api.GetKeys(payment.KeysetId, ct);
+        var keys = keyset.Keysets.SingleOrDefault()?.Keys
+                   ?? throw new InvalidOperationException($"Keys not found: {payment.KeysetId}");
+
+        var proofs = Utils.ConstructProofsFromPromises(res.Signatures, returnedOutputs, keys);
+
+        payment.PaidAt ??= DateTimeOffset.UtcNow;
+        payment.Proofs = StoredProof
+            .FromBatch(proofs, payment.StoreId, ProofState.Available).ToList();
+        await db.SaveChangesAsync(ct);
+
+        logger.LogDebug("Recovered proofs for quote {QuoteId}", payment.QuoteId);
+    }
+
 
     private async Task CleanupExpiredQuotesAsync()
     {
         try
         {
             await using var db = dbContextFactory.CreateContext();
-            // only unpaid quotes can be expired.
             var expired = await db.LightningInvoices
                 .Where(p => p.QuoteState == "UNPAID" && p.Expiry <= DateTimeOffset.UtcNow)
                 .ToListAsync();
@@ -396,15 +402,15 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
 
                     var key = $"{payment.Mint}|{payment.QuoteId}";
                     if (_activeSubscriptions.TryGetValue(key, out var entry))
-                    {
                         await entry.Cts.CancelAsync();
-                    }
                 }
 
                 await db.SaveChangesAsync();
                 logger.LogDebug("Cleaned up {Count} expired quotes", expired.Count);
             }
-            
+
+            await CheckPendingPaymentsAsync();
+
             foreach (var connection in _wsService.GetConnections().ToList())
             {
                 if (!_wsService.GetSubscriptions(connection.MintUrl).Any())
@@ -419,12 +425,93 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             logger.LogDebug(ex, "Error during periodic cleanup");
         }
     }
-    
+
+
+    private async Task CheckPendingPaymentsAsync()
+    {
+        foreach (var paymentId in _pendingPayments.Keys.ToList())
+        {
+            try
+            {
+                await using var db = dbContextFactory.CreateContext();
+                var payment = await db.LightningPayments
+                    .Include(p => p.Proofs)
+                    .FirstOrDefaultAsync(p => p.Id == paymentId);
+
+                if (payment is null || payment.QuoteState != "PENDING")
+                {
+                    _pendingPayments.TryRemove(paymentId, out _);
+                    continue;
+                }
+
+                using var api = CashuUtils.GetCashuHttpClient(payment.Mint);
+                var quote = await api.CheckMeltQuote<PostMeltQuoteBolt11Response>("bolt11", payment.QuoteId);
+
+                switch (quote.State)
+                {
+                    case "PAID":
+                        payment.QuoteState = "PAID";
+                        payment.PaidAt = DateTimeOffset.UtcNow;
+                        payment.Preimage = quote.PaymentPreimage ?? string.Empty;
+                        foreach (var proof in payment.Proofs.Where(p => p.Status == ProofState.Reserved))
+                            proof.Status = ProofState.Spent;
+                        await db.SaveChangesAsync();
+                        _pendingPayments.TryRemove(paymentId, out _);
+                        logger.LogDebug("Finalized pending payment {PaymentId} as PAID", paymentId);
+                        break;
+
+                    case "UNPAID":
+                    case "EXPIRED":
+                        payment.QuoteState = quote.State!;
+                        var reservedProofs = payment.Proofs
+                            .Where(p => p.Status == ProofState.Reserved).ToList();
+                        if (reservedProofs.Count > 0)
+                        {
+                            var checkReq = new PostCheckStateRequest
+                            {
+                                Ys = reservedProofs.Select(p => p.C.ToString()).ToArray()
+                            };
+                            var checkRes = await api.CheckState(checkReq);
+                            var stateMap = checkRes.States.ToDictionary(s => s.Y, s => s.State);
+                            foreach (var proof in reservedProofs)
+                            {
+                                var mintState = stateMap.GetValueOrDefault(proof.C.ToString());
+                                proof.Status = mintState == StateResponseItem.TokenState.SPENT
+                                    ? ProofState.Spent
+                                    : ProofState.Available;
+                            }
+                        }
+                        await db.SaveChangesAsync();
+                        _pendingPayments.TryRemove(paymentId, out _);
+                        logger.LogDebug("Rolled back payment {PaymentId}, quote {State}", paymentId, quote.State);
+                        break;
+
+                    // "PENDING": payment still in flight
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Error checking pending payment {PaymentId}", paymentId);
+            }
+        }
+    }
+
+    private void NotifyListeners(CashuLightningClientInvoice payment)
+    {
+        var invoice = payment.ToLightningInvoice();
+        foreach (var listener in _listeners.Values)
+        {
+            if (listener.StoreId == payment.StoreId && listener.MintUrl == payment.Mint)
+                listener.NotificationChannel.Writer.TryWrite(invoice);
+        }
+    }
+
     public void Dispose()
     {
         _expiryTimer?.Dispose();
         _cts?.Dispose();
     }
+
 }
 
 public class CashuListenerRegistration

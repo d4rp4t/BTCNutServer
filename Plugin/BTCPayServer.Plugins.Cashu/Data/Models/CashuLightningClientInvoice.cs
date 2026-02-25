@@ -19,11 +19,10 @@ public class CashuLightningClientInvoice
     public string QuoteId { get; set; }
     public KeysetId KeysetId { get; set; }
     public List<OutputData> OutputData { get; set; }
-
-    /// <summary>
+    
     /// Raw mint state: "UNPAID", "PAID", "ISSUED":
-    /// </summary>
     public string QuoteState { get; set; }
+    public List<StoredProof> Proofs { get; set; }
 
     public string InvoiceId { get; set; }
     public LightMoney Amount { get; set; }
@@ -37,22 +36,17 @@ public class CashuLightningClientInvoice
     {
         get
         {
-            var status =  QuoteState?.ToUpperInvariant() switch
+            return QuoteState?.ToUpperInvariant() switch
             {
-                // let's assume lightning payment is finished only if we have the proofs.
+                // lightning payment is finished only when we have the proofs
                 "ISSUED" => LightningInvoiceStatus.Paid,
+                // PAID = LN received by mint, tokens not yet minted — keep as Unpaid (mint will honor it)
                 "PAID" => LightningInvoiceStatus.Unpaid,
+                "UNPAID" when DateTimeOffset.UtcNow > Expiry => LightningInvoiceStatus.Expired,
                 "UNPAID" => LightningInvoiceStatus.Unpaid,
-                "EXPIRED" => LightningInvoiceStatus.Expired, // additional state
+                "EXPIRED" => LightningInvoiceStatus.Expired,
                 _ => LightningInvoiceStatus.Unpaid
             };
-
-            if (status != LightningInvoiceStatus.Unpaid && DateTimeOffset.UtcNow > Expiry)
-            {
-                return LightningInvoiceStatus.Expired;
-            }
-
-            return status;
         }
         private set {}
     }

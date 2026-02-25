@@ -14,6 +14,9 @@ public class StoredProof : Proof
 
     // FK for exported tokens - null means proof is in wallet, set means exported
     public Guid? ExportedTokenId { get; set; }
+    
+    public Guid? CashuLightningClientInvoiceId { get; set; }
+    public Guid? CashuLightningClientPaymentId { get; set; }
 
     // EF requires empty constructor
     private StoredProof() { }
@@ -46,9 +49,13 @@ public class StoredProof : Proof
     public static IEnumerable<StoredProof> FromBatch(
         IEnumerable<Proof> proofs,
         string storeId,
-        ProofState status
+        ProofState status,
+        Guid? paymentId = null
     )
     {
-        return proofs.Select(p => new StoredProof(p, storeId, status));
+        return proofs.Select(p => new StoredProof(p, storeId, status)
+        {
+            CashuLightningClientPaymentId = paymentId
+        });
     }
 }
