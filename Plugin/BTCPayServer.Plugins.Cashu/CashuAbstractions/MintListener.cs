@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -116,11 +117,12 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
 
     public void UnregisterListener(string registrationId)
     {
-        if (_listeners.TryRemove(registrationId, out var registration))
+        if (!_listeners.TryRemove(registrationId, out var registration))
         {
-            registration.NotificationChannel.Writer.TryComplete();
-            logger.LogDebug("Unregistered listener {Id}", registrationId);
+            return;
         }
+        registration.NotificationChannel.Writer.TryComplete();
+        logger.LogDebug("Unregistered listener {Id}", registrationId);
     }
     
     

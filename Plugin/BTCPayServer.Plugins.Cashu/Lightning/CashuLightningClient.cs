@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,6 +19,7 @@ namespace BTCPayServer.Plugins.Cashu.Lightning;
 public class CashuLightningClient(
     Uri mintUrl,
     string storeId,
+    string? secret,
     CashuDbContextFactory dbContextFactory,
     MintListener mintListener,
     Network network)
@@ -27,7 +29,7 @@ public class CashuLightningClient(
     
     public override string ToString()
     {
-        return $"type=cashu;mint-url={mintUrl};store-id={storeId};";
+        return $"type=cashu;mint-url={mintUrl};storeId={storeId};secret={secret};";
     }
 
     public async Task<LightningInvoice> CreateInvoice(LightMoney amount, string description, TimeSpan expiry,
@@ -35,7 +37,6 @@ public class CashuLightningClient(
     {
         
         await using var db = dbContextFactory.CreateContext();
-        //todo make sure to secure it somehow. i don't feel like knowing storeID is a right way to authorize xD
         var walletConfig = db.CashuWalletConfig.Single(w => w.StoreId == storeId);
         using var wallet = Wallet
             .Create()
@@ -61,7 +62,7 @@ public class CashuLightningClient(
 
         if (!BOLT11PaymentRequest.TryParse(quote.Request, out var bolt11, network))
         {
-            throw new Exception($"Failed to parse BOLT11 from mint quote: {quote.Request}");
+            throw new InvalidOperationException($"Failed to parse BOLT11 from mint quote: {quote.Request}");
         }
 
         var invoiceId = bolt11.PaymentHash?.ToString()
@@ -88,8 +89,9 @@ public class CashuLightningClient(
         db.LightningInvoices.Add(invoice);
         await db.SaveChangesAsync(cancellation);
 
-        await mintListener.SubscribeQuoteAsync(
-            invoice.Mint, invoice.QuoteId, cancellation);
+        // Fire-and-forget: WS subscription is a real-time optimization, not required for invoice creation.
+        // Using CancellationToken.None so BTCPay's 5s timeout doesn't kill the WS handshake.
+        _ = mintListener.SubscribeQuoteAsync(invoice.Mint, invoice.QuoteId, CancellationToken.None);
 
         return invoice.ToLightningInvoice();
     }
@@ -135,7 +137,7 @@ public class CashuLightningClient(
         var invoices = db.LightningInvoices
             .Where(s => s.StoreId == storeId);
         
-        // it seems like blink plugin also doesn't support offset..
+        // it seems like blink plugin also doesn't support offset
 
         if (request.PendingOnly is true)
         {
@@ -222,7 +224,10 @@ public class CashuLightningClient(
         var config = db.CashuWalletConfig.SingleOrDefault(w => w.StoreId == storeId);
         if (config == null)
             throw new InvalidOperationException($"Could not fetch cashu wallet config for storeId: {storeId}");
-
+        if (secret == null || config.LightningClientSecret != Guid.Parse(secret))
+        {
+            throw new InvalidOperationException("Invalid or null lightning client secret!");
+        }
         // create melt quote 
         using var wallet = Wallet
             .Create()
@@ -241,9 +246,7 @@ public class CashuLightningClient(
         var paymentHash = bolt11Parsed.PaymentHash?.ToString()
             ?? throw new Exception("BOLT11 missing payment hash");
 
-        // Save payment record before touching proofs — enables crash recovery.
-        // QuoteState starts as "PENDING"; updated to "PAID" after successful melt.
-        // If we crash mid-melt, MintListener polls CheckMeltQuote to finalize or rollback.
+        // save payment record before touching proofs
         var payment = new CashuLightningClientPayment
         {
             StoreId = storeId,
@@ -379,6 +382,11 @@ public class CashuLightningClient(
     
     public Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
     {
+        // return Task.FromResult(new LightningNodeInformation
+        // {
+        //     Alias = $"Cashu ({mintUrl.Host})",
+        //     Version = "cashu",
+        // });
         throw new NotSupportedException();
     }
 

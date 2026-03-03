@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Linq;
+using AngleSharp.Common;
 using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data;
@@ -34,6 +35,8 @@ public class CashuLightningConnectionStringHandler(
             return null;
         }
 
+        var secret = kv.GetOrDefault("secret", null);
+
         Uri uri = new Uri(url);
 
         bool allowInsecure = false;
@@ -56,6 +59,6 @@ public class CashuLightningConnectionStringHandler(
         }
 
         error = null;
-        return new CashuLightningClient(uri, storeId, dbContextFactory, mintListener, network);
+        return new CashuLightningClient(uri, storeId, secret, dbContextFactory, mintListener, network);
     }
 }

@@ -1,3 +1,5 @@
+using System;
+
 namespace BTCPayServer.Plugins.Cashu.ViewModels;
 
 public class CashuSettingsViewModel
@@ -10,4 +12,6 @@ public class CashuSettingsViewModel
 
     //in sats - estimated fee that user pays for us in order to cover fee expenses, it will affect amount
     public int CustomerFeeAdvance { get; set; }
+
+    public Guid? LightningClientSecret { get; set; }
 }
