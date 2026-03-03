@@ -25,11 +25,13 @@ public class CashuLightningClient(
     Network network)
     : ILightningClient
 {
-    public string? DisplayName => "Cashu";
+    public string DisplayName => "Cashu";
     
     public override string ToString()
     {
-        return $"type=cashu;mint-url={mintUrl};storeId={storeId};secret={secret};";
+        return secret is null
+            ? $"type=cashu;mint-url={mintUrl};storeId={storeId};"
+            : $"type=cashu;mint-url={mintUrl};storeId={storeId};secret={secret};";
     }
 
     public async Task<LightningInvoice> CreateInvoice(LightMoney amount, string description, TimeSpan expiry,
@@ -65,7 +67,7 @@ public class CashuLightningClient(
             throw new InvalidOperationException($"Failed to parse BOLT11 from mint quote: {quote.Request}");
         }
 
-        var invoiceId = bolt11.PaymentHash?.ToString()
+        var invoiceId = bolt11!.PaymentHash?.ToString()
             ?? throw new Exception("BOLT11 missing payment hash");
 
         var outputs = mintHandler.GetOutputs();
@@ -180,11 +182,11 @@ public class CashuLightningClient(
         await using var db = dbContextFactory.CreateContext();
         var wallet = Wallet.Create().WithMint(mintUrl);
         var keysets = await wallet.GetKeysets(false, cancellation);
-        var keysetIdStrings = keysets.Select(k => k.Id.ToString()).ToList();
+        var keysetIdStrings = keysets.Select(k => k.Id).ToList();
         var amount = db.Proofs
             .Where(p => p.StoreId == storeId
                         && p.Status == ProofState.Available
-                        && keysetIdStrings.Contains(p.Id.ToString()))
+                        && keysetIdStrings.Contains(p.Id))
             .Select(p => p.Amount).AsEnumerable()
             .Sum();
 
@@ -243,7 +245,7 @@ public class CashuLightningClient(
 
         if (!BOLT11PaymentRequest.TryParse(bolt11, out var bolt11Parsed, network))
             throw new Exception($"Failed to parse BOLT11: {bolt11}");
-        var paymentHash = bolt11Parsed.PaymentHash?.ToString()
+        var paymentHash = bolt11Parsed!.PaymentHash?.ToString()
             ?? throw new Exception("BOLT11 missing payment hash");
 
         // save payment record before touching proofs
