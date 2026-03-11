@@ -227,7 +227,6 @@ public class UICashuWalletController(
             {
                 await transaction.RollbackAsync();
                 TempData[WellKnownTempData.ErrorMessage] = "Couldn't export token";
-                // todo check this shi out 
                 result = RedirectToAction(nameof(CashuWallet), new { storeId = StoreData.Id });
             }
         });
@@ -250,7 +249,7 @@ public class UICashuWalletController(
 
         if (exportedToken == null)
         {
-            return BadRequest("Can't find token with provided GUID");
+            return NotFound();
         }
 
         // in pre-release version there were no Proofs in exportedToken, and token had to be deserialized manually every time

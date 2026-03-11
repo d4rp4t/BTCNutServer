@@ -10,8 +10,10 @@ using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.enums;
 using BTCPayServer.Plugins.Cashu.Data.Models;
+using DotNut;
 using DotNut.Abstractions;
 using DotNut.Abstractions.Websockets;
+using DotNut.Api;
 using DotNut.ApiModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -28,6 +30,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     private readonly ConcurrentDictionary<string, byte> _mintingQuotes = new();
     private readonly ConcurrentDictionary<Guid, byte> _pendingPayments = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _payLocks = new();
+    private readonly SemaphoreSlim _cleanupLock = new(1, 1);
     private CancellationTokenSource? _cts;
     private Task? _backgroundTask;
     private Timer? _expiryTimer;
@@ -389,6 +392,8 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
 
     private async Task CleanupExpiredQuotesAsync()
     {
+        if (!await _cleanupLock.WaitAsync(0))
+            return;
         try
         {
             await using var db = dbContextFactory.CreateContext();
@@ -426,6 +431,10 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         {
             logger.LogDebug(ex, "Error during periodic cleanup");
         }
+        finally
+        {
+            _cleanupLock.Release();
+        }
     }
 
 
@@ -457,6 +466,8 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                         payment.Preimage = quote.PaymentPreimage ?? string.Empty;
                         foreach (var proof in payment.Proofs.Where(p => p.Status == ProofState.Reserved))
                             proof.Status = ProofState.Spent;
+                        if (payment.BlankOutputs is { Count: > 0 })
+                            await RestoreChangeProofsAsync(db, api, payment);
                         await db.SaveChangesAsync();
                         _pendingPayments.TryRemove(paymentId, out _);
                         logger.LogDebug("Finalized pending payment {PaymentId} as PAID", paymentId);
@@ -498,6 +509,48 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         }
     }
 
+    private async Task RestoreChangeProofsAsync(
+        CashuDbContext db, ICashuApi api, CashuLightningClientPayment payment)
+    {
+        try
+        {
+            var req = new PostRestoreRequest
+            {
+                Outputs = payment.BlankOutputs!.Select(o => o.BlindedMessage).ToArray(),
+            };
+            var res = await api.Restore(req);
+            if (res.Signatures.Length == 0)
+                return;
+
+            var returnedOutputs = new List<OutputData>();
+            foreach (var output in res.Outputs)
+            {
+                var match = payment.BlankOutputs.SingleOrDefault(o => Equals(o.BlindedMessage.B_, output.B_));
+                if (match is not null)
+                    returnedOutputs.Add(match);
+            }
+
+            var changeProofs = new List<Proof>();
+            foreach (var keysetId in res.Signatures.Select(s => s.Id).Distinct())
+            {
+                var keyset = await api.GetKeys(keysetId);
+                var keys = keyset.Keysets.SingleOrDefault()?.Keys;
+                if (keys is null) continue;
+                changeProofs.AddRange(Utils.ConstructProofsFromPromises(res.Signatures.ToList(), returnedOutputs, keys));
+            }
+
+            if (changeProofs.Count > 0)
+            {
+                db.Proofs.AddRange(StoredProof.FromBatch(changeProofs, payment.StoreId, ProofState.Available));
+                logger.LogDebug("Restored {Count} change proof(s) for payment {PaymentId}", changeProofs.Count, payment.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to restore change proofs for payment {PaymentId}", payment.Id);
+        }
+    }
+
     private void NotifyListeners(CashuLightningClientInvoice payment)
     {
         var invoice = payment.ToLightningInvoice();
@@ -512,6 +565,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     {
         _expiryTimer?.Dispose();
         _cts?.Dispose();
+        _cleanupLock.Dispose();
     }
 
 }

@@ -250,6 +250,13 @@ public class UICashuStoresController : Controller
         StoreData.SetStoreBlob(blob);
         await _storeRepository.UpdateStore(StoreData);
         
+        // remove cashu lightning client payments and invoices
+        var payments = db.LightningPayments.Where(p=>p.StoreId == id);
+        await payments.ExecuteDeleteAsync();
+        
+        var invoices = db.LightningInvoices.Where(p => p.StoreId == id);
+        await invoices.ExecuteDeleteAsync();
+        
         TempData[WellKnownTempData.SuccessMessage] = "Wallet removed successfully";
         return RedirectToAction("Dashboard", "UIStores", new {StoreId = StoreData.Id});
     }

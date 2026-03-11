@@ -192,11 +192,23 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
                 .WithOne()
                 .HasForeignKey(sp => sp.CashuLightningClientPaymentId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity
+                .Property(p => p.BlankOutputs)
+                .HasConversion(
+                    od => od == null ? null : JsonSerializer.Serialize(od, outputDataJsonOptions),
+                    json => json == null ? null : JsonSerializer.Deserialize<List<DotNut.Abstractions.OutputData>>(json, outputDataJsonOptions)
+                )
+                .Metadata.SetValueComparer(new ValueComparer<List<DotNut.Abstractions.OutputData>>(
+                    (l1, l2) => JsonSerializer.Serialize(l1, outputDataJsonOptions) == JsonSerializer.Serialize(l2, outputDataJsonOptions),
+                    l => JsonSerializer.Serialize(l, outputDataJsonOptions).GetHashCode(),
+                    l => JsonSerializer.Deserialize<List<DotNut.Abstractions.OutputData>>(JsonSerializer.Serialize(l, outputDataJsonOptions), outputDataJsonOptions)
+                ));
         });
 
         modelBuilder.Entity<CashuLightningClientInvoice>(entity =>
         {
             entity.HasKey(i => i.Id);
+            entity.Ignore(i => i.Status);
             entity.HasIndex(i => i.QuoteId);
             entity.HasIndex(i => i.InvoiceId);
             entity.HasIndex(i => i.StoreId);
