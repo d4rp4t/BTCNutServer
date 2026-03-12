@@ -9,7 +9,7 @@
   <PropertyGroup>
     <Product>BTCNutServer</Product>
     <Description>Enables trustless Cashu eCash payments in BTCPay Server. Early beta, don't be reckless.</Description>
-    <Version>0.0.2</Version>
+    <Version>0.0.3</Version>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <!-- Plugin development properties -->
