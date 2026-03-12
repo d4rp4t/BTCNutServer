@@ -3,6 +3,7 @@ using System;
 using BTCPayServer.Plugins.Cashu.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BTCPayServer.Plugins.Cashu.Data.Migrations
 {
     [DbContext(typeof(CashuDbContext))]
-    partial class CashuDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260212090606_LightningInvoiceProofs")]
+    partial class LightningInvoiceProofs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -62,6 +65,9 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                     b.Property<string>("QuoteState")
                         .HasColumnType("text");
 
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
                     b.Property<string>("StoreId")
                         .HasColumnType("text");
 
@@ -78,74 +84,15 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                     b.ToTable("LightningInvoices", "BTCPayServer.Plugins.Cashu");
                 });
 
-            modelBuilder.Entity("BTCPayServer.Plugins.Cashu.Data.Models.CashuLightningClientPayment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("Amount")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("BlankOutputs")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Bolt11")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("FeeAmount")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Mint")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("PaidAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PaymentHash")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Preimage")
-                        .HasColumnType("text");
-
-                    b.Property<string>("QuoteId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("QuoteState")
-                        .HasColumnType("text");
-
-                    b.Property<string>("StoreId")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PaymentHash");
-
-                    b.HasIndex("QuoteId");
-
-                    b.HasIndex("StoreId");
-
-                    b.HasIndex("Mint", "QuoteState");
-
-                    b.ToTable("LightningPayments", "BTCPayServer.Plugins.Cashu");
-                });
-
             modelBuilder.Entity("BTCPayServer.Plugins.Cashu.Data.Models.CashuWalletConfig", b =>
                 {
                     b.Property<string>("StoreId")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("LightningClientSecret")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("Verified")
                         .HasColumnType("boolean");
 
                     b.Property<string>("WalletMnemonic")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("StoreId");
@@ -311,9 +258,6 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                     b.Property<Guid?>("CashuLightningClientInvoiceId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("CashuLightningClientPaymentId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("DLEQ")
                         .HasColumnType("text")
                         .HasAnnotation("Relational:JsonPropertyName", "dleq");
@@ -350,8 +294,6 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                     b.HasIndex("Amount");
 
                     b.HasIndex("CashuLightningClientInvoiceId");
-
-                    b.HasIndex("CashuLightningClientPaymentId");
 
                     b.HasIndex("ExportedTokenId");
 
@@ -415,11 +357,6 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                         .HasForeignKey("CashuLightningClientInvoiceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("BTCPayServer.Plugins.Cashu.Data.Models.CashuLightningClientPayment", null)
-                        .WithMany("Proofs")
-                        .HasForeignKey("CashuLightningClientPaymentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("BTCPayServer.Plugins.Cashu.Data.Models.ExportedToken", null)
                         .WithMany("Proofs")
                         .HasForeignKey("ExportedTokenId")
@@ -427,11 +364,6 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
                 });
 
             modelBuilder.Entity("BTCPayServer.Plugins.Cashu.Data.Models.CashuLightningClientInvoice", b =>
-                {
-                    b.Navigation("Proofs");
-                });
-
-            modelBuilder.Entity("BTCPayServer.Plugins.Cashu.Data.Models.CashuLightningClientPayment", b =>
                 {
                     b.Navigation("Proofs");
                 });

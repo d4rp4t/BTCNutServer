@@ -6,6 +6,7 @@ using BTCPayServer.Abstractions.Constants;
 using BTCPayServer.Client;
 using BTCPayServer.Controllers;
 using BTCPayServer.Data;
+using BTCPayServer.Payments.Lightning;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.enums;
@@ -181,11 +182,16 @@ public class UICashuStoresController : Controller
                 MaxLightningFee = 0,
                 MaxKeysetFee = 0,
             };
+
+        await using var db = _cashuDbContextFactory.CreateContext();
+        var walletConfig = db.CashuWalletConfig.SingleOrDefault(cwc => cwc.StoreId == storeId);
+
         var model = new CashuSettingsViewModel
         {
             CustomerFeeAdvance = feeConfig.CustomerFeeAdvance,
             MaxLightningFee = feeConfig.MaxLightningFee,
             MaxKeysetFee = feeConfig.MaxKeysetFee,
+            LightningClientSecret = walletConfig?.LightningClientSecret,
         };
 
         return View("Views/Cashu/CashuSettings.cshtml", model);
@@ -244,7 +250,58 @@ public class UICashuStoresController : Controller
         StoreData.SetStoreBlob(blob);
         await _storeRepository.UpdateStore(StoreData);
         
+        // remove cashu lightning client payments and invoices
+        var payments = db.LightningPayments.Where(p=>p.StoreId == id);
+        await payments.ExecuteDeleteAsync();
+        
+        var invoices = db.LightningInvoices.Where(p => p.StoreId == id);
+        await invoices.ExecuteDeleteAsync();
+        
         TempData[WellKnownTempData.SuccessMessage] = "Wallet removed successfully";
         return RedirectToAction("Dashboard", "UIStores", new {StoreId = StoreData.Id});
+    }
+
+    [HttpPost("{storeId}/cashu/settings/lightning-client/generate")]
+    public async Task<IActionResult> GenerateLightningClientSecret(string storeId)
+    {
+        await using var db = _cashuDbContextFactory.CreateContext();
+        var walletConfig = db.CashuWalletConfig.SingleOrDefault(cwc => cwc.StoreId == storeId);
+
+        if (walletConfig == null)
+        {
+            TempData[WellKnownTempData.ErrorMessage] = "No Cashu wallet configured for this store.";
+            return RedirectToAction(nameof(Settings), new { storeId });
+        }
+
+        if (walletConfig.LightningClientSecret is not null)
+        {
+            TempData[WellKnownTempData.ErrorMessage] = "A secret already exists. Use rotate to replace it.";
+            return RedirectToAction(nameof(Settings), new { storeId });
+        }
+
+        walletConfig.LightningClientSecret = Guid.NewGuid();
+        await db.SaveChangesAsync();
+
+        TempData[WellKnownTempData.SuccessMessage] = "Lightning client secret generated successfully.";
+        return RedirectToAction(nameof(Settings), new { storeId });
+    }
+
+    [HttpPost("{storeId}/cashu/settings/lightning-client/rotate")]
+    public async Task<IActionResult> RotateLightningClientSecret(string storeId)
+    {
+        await using var db = _cashuDbContextFactory.CreateContext();
+        var walletConfig = db.CashuWalletConfig.SingleOrDefault(cwc => cwc.StoreId == storeId);
+
+        if (walletConfig == null)
+        {
+            TempData[WellKnownTempData.ErrorMessage] = "No Cashu wallet configured for this store.";
+            return RedirectToAction(nameof(Settings), new { storeId });
+        }
+
+        walletConfig.LightningClientSecret = Guid.NewGuid();
+        await db.SaveChangesAsync();
+
+        TempData[WellKnownTempData.SuccessMessage] = "Lightning client secret rotated. Update any connections using the old secret.";
+        return RedirectToAction(nameof(Settings), new { storeId });
     }
 }

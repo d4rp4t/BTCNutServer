@@ -1,13 +1,13 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
+using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using DotNut;
 using DotNut.JsonConverters;
 using DotNut.NBitcoin.BIP39;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using FailedTransaction = BTCPayServer.Plugins.Cashu.Data.Models.FailedTransaction;
 using ISecret = DotNut.ISecret;
 
 namespace BTCPayServer.Plugins.Cashu.Data;
@@ -23,11 +23,16 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
     public DbSet<ExportedToken> ExportedTokens { get; set; }
     public DbSet<CashuWalletConfig> CashuWalletConfig { get; set; }
     public DbSet<StoreKeysetCounter> StoreKeysetCounters { get; set; }
-
-    // public DbSet<LightningClientQuote> LightningClientQuotes { get; set; }
+    public DbSet<CashuLightningClientInvoice> LightningInvoices { get; set; }
+    public DbSet<CashuLightningClientPayment> LightningPayments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var outputDataJsonOptions = new JsonSerializerOptions
+        {
+            Converters = { new SecretJsonConverter(), new PrivKeyJsonConverter() }
+        };
+        
         modelBuilder.HasDefaultSchema(DefaultPluginSchema);
 
         modelBuilder.Entity<StoredProof>(entity =>
@@ -124,11 +129,7 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
             entity.HasIndex(t => t.InvoiceId);
             entity.OwnsOne(t => t.MeltDetails);
             
-            // OutputData - serialize list as JSON
-            var outputDataJsonOptions = new JsonSerializerOptions
-            {
-                Converters = { new SecretJsonConverter(), new PrivKeyJsonConverter() }
-            };
+            
             entity
                 .Property(t => t.OutputData)
                 .HasConversion(
@@ -167,6 +168,76 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
                 .HasConversion(ki => ki.ToString(), ki => new KeysetId(ki.ToString()));
 
             entity.HasKey(skc => new { skc.StoreId, skc.KeysetId });
+        });
+
+        modelBuilder.Entity<CashuLightningClientPayment>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+            entity.HasIndex(p => p.QuoteId);
+            entity.HasIndex(p => p.PaymentHash);
+            entity.HasIndex(p => p.StoreId);
+            entity.HasIndex(p => new { p.Mint, p.QuoteState });
+            entity
+                .Property(p => p.Amount)
+                .HasConversion(
+                    a => a.MilliSatoshi,
+                    v => new LightMoney(v, LightMoneyUnit.MilliSatoshi));
+            entity
+                .Property(p => p.FeeAmount)
+                .HasConversion(
+                    a => a == null ? (long?)null : a.MilliSatoshi,
+                    v => v == null ? null : new LightMoney(v.Value, LightMoneyUnit.MilliSatoshi));
+            entity
+                .HasMany(p => p.Proofs)
+                .WithOne()
+                .HasForeignKey(sp => sp.CashuLightningClientPaymentId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity
+                .Property(p => p.BlankOutputs)
+                .HasConversion(
+                    od => od == null ? null : JsonSerializer.Serialize(od, outputDataJsonOptions),
+                    json => json == null ? null : JsonSerializer.Deserialize<List<DotNut.Abstractions.OutputData>>(json, outputDataJsonOptions)
+                )
+                .Metadata.SetValueComparer(new ValueComparer<List<DotNut.Abstractions.OutputData>>(
+                    (l1, l2) => JsonSerializer.Serialize(l1, outputDataJsonOptions) == JsonSerializer.Serialize(l2, outputDataJsonOptions),
+                    l => JsonSerializer.Serialize(l, outputDataJsonOptions).GetHashCode(),
+                    l => JsonSerializer.Deserialize<List<DotNut.Abstractions.OutputData>>(JsonSerializer.Serialize(l, outputDataJsonOptions), outputDataJsonOptions)
+                ));
+        });
+
+        modelBuilder.Entity<CashuLightningClientInvoice>(entity =>
+        {
+            entity.HasKey(i => i.Id);
+            entity.Ignore(i => i.Status);
+            entity.HasIndex(i => i.QuoteId);
+            entity.HasIndex(i => i.InvoiceId);
+            entity.HasIndex(i => i.StoreId);
+            entity.HasIndex(i => new { i.Mint, i.QuoteState });
+            entity
+                .Property(i => i.Amount)
+                .HasConversion(
+                    a => a.MilliSatoshi,
+                    v => new LightMoney(v, LightMoneyUnit.MilliSatoshi)
+                    );
+            entity
+                .Property(i => i.KeysetId)
+                .HasConversion(
+                    kid => kid.ToString(),
+                    v => new KeysetId(v)
+                );
+            entity
+                .Property(i => i.OutputData)
+                .HasConversion(
+                    od => JsonSerializer.Serialize(od, outputDataJsonOptions),
+                    json =>
+                        JsonSerializer.Deserialize<List<DotNut.Abstractions.OutputData>>(json, outputDataJsonOptions)
+                        ?? new List<DotNut.Abstractions.OutputData>()
+                );
+            entity
+                .HasMany(i => i.Proofs)
+                .WithOne()
+                .HasForeignKey(sp => sp.CashuLightningClientInvoiceId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

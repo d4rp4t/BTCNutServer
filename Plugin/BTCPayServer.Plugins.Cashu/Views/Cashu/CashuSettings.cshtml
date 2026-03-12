@@ -1,7 +1,6 @@
 @using BTCPayServer
 @using BTCPayServer.Abstractions.Extensions
 @using BTCPayServer.Plugins.Cashu
-@using BTCPayServer.Plugins.Cashu.Controllers
 @model BTCPayServer.Plugins.Cashu.ViewModels.CashuSettingsViewModel
 @{
     ViewData.SetActivePage(CashuPlugin.PluginNavKey, "Cashu Settings", "Configuration");
@@ -102,17 +101,130 @@
                 </div>
             </div>
             
+            @* ======= LIGHTNING CLIENT =======  *@
+            <div class="tile mb-4">
+                <h3 class="mb-2">Lightning Node Integration</h3>
+                <p class="text-muted mb-3">
+                    Use your Cashu wallet as a BTCPay Lightning node. Configure the connection string under
+                    <strong>Store Settings → Lightning</strong>.
+                </p>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Receive-only connection string</label>
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-control font-monospace"
+                                   id="connStringReceive"
+                                   readonly
+                                   value="type=cashu;mint-url=&lt;MINT_URL&gt;;store-id=@storeId" />
+                            <button type="button" class="btn btn-secondary flex-shrink-0"
+                                    data-copy-btn
+                                    data-clipboard-text="type=cashu;mint-url=&lt;MINT_URL&gt;;store-id=@storeId">Copy</button>
+                        </div>
+                        <div class="form-text">Can create and monitor Lightning invoices. No spending capability.</div>
+                    </div>
+
+                    @if (Model.LightningClientSecret.HasValue)
+                    {
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Send &amp; Receive connection string</label>
+                            <div class="d-flex gap-2">
+                                <div class="input-group">
+                                    <input type="password" class="form-control font-monospace"
+                                           id="connStringSend"
+                                           readonly
+                                           autocomplete="off"
+                                           value="type=cashu;mint-url=&lt;MINT_URL&gt;;store-id=@storeId;secret=@Model.LightningClientSecret" />
+                                    <button type="button" class="btn btn-outline-secondary" id="toggleSendVisibility" title="Show">
+                                        Show
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-secondary flex-shrink-0"
+                                        data-copy-btn
+                                        data-clipboard-text="type=cashu;mint-url=&lt;MINT_URL&gt;;store-id=@storeId;secret=@Model.LightningClientSecret">Copy</button>
+                            </div>
+                            <div class="form-text">
+                                Enables outgoing payments using your Cashu ecash balance. Keep this secret private.
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Send &amp; Receive</label>
+                            <p class="text-muted mb-2">Generate a secret to enable outgoing Lightning payments from your Cashu balance.</p>
+                            <button type="submit" class="btn btn-primary" form="generateSecretForm">Generate Secret</button>
+                        </div>
+                    }
+                </div>
+
+                @* @if (Model.LightningClientSecret.HasValue) *@
+                @* { *@
+                @*     <div class="alert alert-info d-flex align-items-start" role="alert"> *@
+                @*         <vc:icon symbol="info" /> *@
+                @*         <div class="ms-3"> *@
+                @*             Replace <code>&lt;MINT_URL&gt;</code> with your mint URL, e.g. <code>https://mint.minibits.cash/Bitcoin</code>. *@
+                @*             Keep the secret private — anyone with it can spend your ecash balance. *@
+                @*         </div> *@
+                @*     </div> *@
+                @* } *@
+            </div>
+
             @* ======= DANGER ZONE =======  *@
-            <div class="tile border border-1 border-danger">
-                    <h4 class="mb-2">Reset Cashu Wallet</h4>
-                    <p class="text-muted mb-3">Wipe your Cashu wallet from this server. This will remove all your proofs and cannot be undone.</p>
-                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
-                        Remove Wallet
-                    </button>
+            <div class="tile border border-1 border-danger mb-4">
+                <h4 class="mb-3">Danger Zone</h4>
+
+                @if (Model.LightningClientSecret.HasValue)
+                {
+                    <div class="mb-4 pb-4 border-bottom">
+                        <h5 class="mb-1">Rotate Lightning Client Secret</h5>
+                        <p class="text-muted mb-2">Invalidates the current secret. Any Lightning node connections using the old secret will stop working.</p>
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmRotateModal">
+                            Rotate Secret
+                        </button>
+                    </div>
+                }
+
+                <h5 class="mb-1">Reset Cashu Wallet</h5>
+                <p class="text-muted mb-3">Wipe your Cashu wallet from this server. This will remove all your proofs and cannot be undone.</p>
+                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal">
+                    Remove Wallet
+                </button>
             </div>
         </div>
     </div>
 </form>
+
+<form id="generateSecretForm"
+      method="post"
+      asp-action="GenerateLightningClientSecret"
+      asp-route-storeId="@storeId">
+</form>
+
+@if (Model.LightningClientSecret.HasValue)
+{
+    <div class="modal fade" id="confirmRotateModal" tabindex="-1" aria-labelledby="confirmRotateModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="confirmRotateModalLabel">Rotate Lightning Client Secret</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will generate a new secret and invalidate the current one.</p>
+                    <p class="mb-0 fw-bold">Any Lightning node using the old connection string will stop working until reconfigured.</p>
+                </div>
+                <form class="modal-footer" method="post"
+                      asp-controller="UICashuStores"
+                      asp-action="RotateLightningClientSecret"
+                      asp-route-storeId="@storeId">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Rotate Secret</button>
+                </form>
+            </div>
+        </div>
+    </div>
+}
 
 <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -154,17 +266,44 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Copy buttons - read directly from data-clipboard-text attribute
+        document.querySelectorAll('[data-copy-btn]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const text = this.getAttribute('data-clipboard-text');
+                navigator.clipboard.writeText(text).then(() => {
+                    const original = this.textContent;
+                    this.textContent = 'Copied!';
+                    this.disabled = true;
+                    setTimeout(() => { this.textContent = original; this.disabled = false; }, 2000);
+                }).catch(() => {
+                    this.textContent = 'Failed';
+                    setTimeout(() => { this.textContent = 'Copy'; }, 2000);
+                });
+            });
+        });
+
+        // Show/hide toggle for send connection string
+        const toggleBtn = document.getElementById('toggleSendVisibility');
+        const sendInput = document.getElementById('connStringSend');
+        if (toggleBtn && sendInput) {
+            toggleBtn.addEventListener('click', function() {
+                const isHidden = sendInput.type === 'password';
+                sendInput.type = isHidden ? 'text' : 'password';
+                this.textContent = isHidden ? 'Hide' : 'Show';
+            });
+        }
+
         const confirmInput = document.getElementById('confirmText');
         const confirmBtn = document.getElementById('confirmDeleteBtn');
         const modal = document.getElementById('confirmDeleteModal');
-        
+
         // Reset input when modal is closed
         modal.addEventListener('hidden.bs.modal', function() {
             confirmInput.value = '';
             confirmBtn.style.pointerEvents = 'none';
             confirmBtn.style.opacity = '0.5';
         });
-        
+
         // Enable/disable delete button based on input
         confirmInput.addEventListener('input', function() {
             if (this.value.trim() === '@removeWalletString') {

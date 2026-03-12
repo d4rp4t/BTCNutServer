@@ -1,12 +1,9 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Errors;
 using DotNut;
 using NBitcoin;
-using NBitcoin.Secp256k1;
 using Xunit;
-using DLEQProof = DotNut.DLEQProof;
 using Mnemonic = DotNut.NBitcoin.BIP39.Mnemonic;
 
 namespace BTCPayserver.Plugins.Cashu.Tests
@@ -15,7 +12,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
     {
 
         public static string keysetPath =
-            "/Users/d4rp4t/RiderProjects/BTCNutServer/BTCPayserver.Plugins.Cashu.Tests/keys.json";
+            "/Users/d4rp4t/RiderProjects/BTCNutServer/BTCPayserver.Plugins.Cashu.Tests/Unit/keys.json";
 
         public Keyset testKeyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
 

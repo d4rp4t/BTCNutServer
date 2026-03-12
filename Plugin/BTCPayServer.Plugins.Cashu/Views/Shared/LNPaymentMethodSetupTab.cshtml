@@ -1,0 +1,43 @@
+    @model BTCPayServer.Models.StoreViewModels.LightningNodeViewModel
+    @{
+        var storeId = Model.StoreId;
+        if (Model.CryptoCode != "BTC")
+        {
+            return;
+        }
+    }
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+           
+           const customNodeAccordian = document.getElementById("CustomNodeSupport");
+           const template = document.getElementById("cashu");
+           customNodeAccordian.appendChild(template.content.cloneNode(true));
+            
+        });
+    </script>
+
+    <template id="cashu">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="CustomCashuHeader">
+                <button type="button" class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#CustomCashuContent" aria-controls="CustomCashuContent" aria-expanded="false">
+                    <span><strong>Cashu</strong> via mint</span>
+                    <vc:icon symbol="caret-down"/>
+                </button>
+            </h2>
+            <div id="CustomCashuContent" class="accordion-collapse collapse" aria-labelledby="CustomCashuHeader" data-bs-parent="#CustomNodeSupport">
+                <div class="accordion-body">
+                    <ul class="pb-2">
+                        <li>
+                            <code><b>type=</b>cashu;<b>mint-url=</b>https://mint.example.com/;<b>store-id</b>=...;</code>
+                        </li>
+                        <li>
+                            Your store-id: <code>@storeId</code>
+                        </li>
+                    </ul>
+                    <p class="my-2">Choose one of the mints <a href="https://bitcoinmints.com/?tab=mints&showCashu=true&units=sat" target="_blank" rel="noreferrer noopener" >mints</a> or use another trusted mint. You <b>must</b> use mint with a valid "sat" unit.</p>
+                    <p>By default, there's no spending permission. If you need it, you'll need tp add a <code><b>secret</b></code> parameter, which you can obtain in <a asp-controller="UICashuStores" asp-action="Settings">Cashu Settings</a></p>
+                </div>
+            </div>
+        </div>
+    </template>

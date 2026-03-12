@@ -15,7 +15,6 @@ using DotNut.Abstractions;
 using DotNut.Abstractions.Handlers;
 using DotNut.ApiModels;
 using Microsoft.EntityFrameworkCore;
-using NBitcoin;
 using DotNutOutputData = DotNut.Abstractions.OutputData;
 using Utils = DotNut.Abstractions.Utils;
 

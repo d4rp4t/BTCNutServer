@@ -3,6 +3,7 @@ using System;
 using BTCPayServer.Plugins.Cashu.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BTCPayServer.Plugins.Cashu.Data.Migrations
 {
     [DbContext(typeof(CashuDbContext))]
-    partial class CashuDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260308223309_LightningPaymentBlankOutputs")]
+    partial class LightningPaymentBlankOutputs
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -61,6 +64,9 @@ namespace BTCPayServer.Plugins.Cashu.Data.Migrations
 
                     b.Property<string>("QuoteState")
                         .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<string>("StoreId")
                         .HasColumnType("text");
