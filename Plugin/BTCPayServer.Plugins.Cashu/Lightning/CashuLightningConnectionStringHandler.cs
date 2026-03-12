@@ -11,7 +11,8 @@ namespace BTCPayServer.Plugins.Cashu.Lightning;
 
 public class CashuLightningConnectionStringHandler(
     CashuDbContextFactory dbContextFactory,
-    MintListener mintListener)
+    MintListener mintListener,
+    MintManager mintManager)
     : ILightningConnectionStringHandler
 {
     public ILightningClient? Create(string connectionString, Network network, out string? error)
@@ -59,6 +60,6 @@ public class CashuLightningConnectionStringHandler(
         }
 
         error = null;
-        return new CashuLightningClient(uri, storeId, secret, dbContextFactory, mintListener, network);
+        return new CashuLightningClient(uri, storeId, secret, dbContextFactory, mintListener, mintManager, network);
     }
 }
