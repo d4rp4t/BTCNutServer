@@ -34,6 +34,45 @@ public class CashuLightningClient(
             ? $"type=cashu;mint-url={mintUrl};store-id={storeId};"
             : $"type=cashu;mint-url={mintUrl};store-id={storeId};secret={secret};";
     }
+    
+    /// <summary>
+    /// Throws an NotSupportedException which is accepted by
+    /// BTCPayServer and means we don't support LightningNodeInformation
+    ///
+    /// Previous logic throws InvalidOperationException if Mint is not available.
+    /// </summary>
+    public async Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
+    {
+        var info = await Wallet
+            .Create()
+            .WithMint(mintUrl)
+            .WithKeysetSync(false)
+            .GetInfo(false, cancellation);
+
+        if (!info.IsSupportedWebSocket().Supported)
+        {
+            throw new InvalidOperationException("Mint doesn't support WebSockets!");
+        }
+
+        var mintingInfo = info.IsSupportedMintMelt(4);
+
+        if (mintingInfo.Disabled)
+        {
+            throw new InvalidOperationException("Minting for this mint is disabled!");
+        }
+
+        if (mintingInfo.Methods.All(i => i.Unit != "sat"))
+        {
+            throw new InvalidOperationException("Mint doesn't support sat unit!");
+        }
+
+        if (mintingInfo.Methods.All(i => i.Method != "bolt11"))
+        {
+            throw new InvalidOperationException("Mint doesn't support bolt11!");
+        }
+        
+        throw new NotSupportedException();
+    }
 
     public async Task<LightningInvoice> CreateInvoice(LightMoney amount, string description, TimeSpan expiry,
         CancellationToken cancellation = default)
@@ -385,15 +424,6 @@ public class CashuLightningClient(
      * ============= *
      */
     
-    public Task<LightningNodeInformation> GetInfo(CancellationToken cancellation = default)
-    {
-        // return Task.FromResult(new LightningNodeInformation
-        // {
-        //     Alias = $"Cashu ({mintUrl.Host})",
-        //     Version = "cashu",
-        // });
-        throw new NotSupportedException();
-    }
 
     public Task<OpenChannelResponse> OpenChannel(OpenChannelRequest openChannelRequest,
         CancellationToken cancellation = default)
