@@ -23,6 +23,7 @@ public class CashuLightningClient(
     string? secret,
     CashuDbContextFactory dbContextFactory,
     MintListener mintListener,
+    MintManager mintManager,
     Network network)
     : ILightningClient
 {
@@ -78,6 +79,8 @@ public class CashuLightningClient(
         CancellationToken cancellation = default)
     {
         
+        await mintManager.GetOrCreateMint(mintUrl.ToString());
+
         await using var db = dbContextFactory.CreateContext();
         var walletConfig = db.CashuWalletConfig.Single(w => w.StoreId == storeId);
         using var wallet = Wallet
