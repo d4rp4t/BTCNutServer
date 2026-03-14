@@ -1,42 +1,17 @@
-#nullable enable
-using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using BTCPayServer.Plugins.Cashu.Lightning;
 using DotNut;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NBitcoin;
 using Xunit;
 using Mnemonic = DotNut.NBitcoin.BIP39.Mnemonic;
 
-namespace BTCPayserver.Plugins.Cashu.Tests;
+namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 
 public class CashuLightningClientTests
 {
-
-    private class TestDbFactory : CashuDbContextFactory
-    {
-        private readonly DbContextOptions<CashuDbContext> _opts;
-
-        public TestDbFactory(DbContextOptions<CashuDbContext> opts)
-            : base(Options.Create(new DatabaseOptions())) => _opts = opts;
-
-        public override CashuDbContext CreateContext(
-            Action<Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder>? _ = null)
-            => new(_opts);
-    }
-
-    private static TestDbFactory CreateDb() =>
-        new(new DbContextOptionsBuilder<CashuDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options);
-
-    private static MintListener CreateMintListener(CashuDbContextFactory db) =>
-        new(db, NullLogger<MintListener>.Instance);
 
     private static readonly Uri FakeMint = new("https://fake-mint.test");
     private const string StoreId = "test-store";
@@ -95,9 +70,9 @@ public class CashuLightningClientTests
     [Fact]
     public async Task Pay_NullSecret_ThrowsInvalidOperation()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await SeedWalletConfig(db, secret: Guid.NewGuid());
-        var client = CreateClient(db, CreateMintListener(db), secret: null);
+        var client = CreateClient(db, db.CreateMintListener(), secret: null);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.Pay("lnbc...", CancellationToken.None));
@@ -106,9 +81,9 @@ public class CashuLightningClientTests
     [Fact]
     public async Task Pay_WrongSecret_ThrowsInvalidOperation()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await SeedWalletConfig(db, secret: Guid.NewGuid());
-        var client = CreateClient(db, CreateMintListener(db), secret: Guid.NewGuid().ToString());
+        var client = CreateClient(db, db.CreateMintListener(), secret: Guid.NewGuid().ToString());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.Pay("lnbc...", CancellationToken.None));
@@ -117,8 +92,8 @@ public class CashuLightningClientTests
     [Fact]
     public async Task Pay_NoWalletConfig_ThrowsInvalidOperation()
     {
-        var db = CreateDb(); 
-        var client = CreateClient(db, CreateMintListener(db), secret: Guid.NewGuid().ToString());
+        var db = TestDbFactory.Create(); 
+        var client = CreateClient(db, db.CreateMintListener(), secret: Guid.NewGuid().ToString());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.Pay("lnbc...", CancellationToken.None));
@@ -127,9 +102,9 @@ public class CashuLightningClientTests
     [Fact]
     public async Task Pay_NoSecret_InConfig_ThrowsInvalidOperation()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await SeedWalletConfig(db, secret: null); 
-        var client = CreateClient(db, CreateMintListener(db), secret: Guid.NewGuid().ToString());
+        var client = CreateClient(db, db.CreateMintListener(), secret: Guid.NewGuid().ToString());
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.Pay("lnbc...", CancellationToken.None));
@@ -139,7 +114,7 @@ public class CashuLightningClientTests
     [Fact]
     public async Task GetInvoice_ExistingId_ReturnsInvoice()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         var invoiceId = "abc123";
         await using (var ctx = db.CreateContext())
         {
@@ -147,7 +122,7 @@ public class CashuLightningClientTests
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.GetInvoice(invoiceId);
 
         Assert.NotNull(result);
@@ -157,8 +132,8 @@ public class CashuLightningClientTests
     [Fact]
     public async Task GetInvoice_MissingId_ReturnsNull()
     {
-        var db = CreateDb();
-        var client = CreateClient(db, CreateMintListener(db));
+        var db = TestDbFactory.Create();
+        var client = CreateClient(db, db.CreateMintListener());
 
         var result = await client.GetInvoice("does-not-exist");
 
@@ -168,7 +143,7 @@ public class CashuLightningClientTests
     [Fact]
     public async Task GetInvoice_DifferentStore_ReturnsNull()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
             var invoice = MakeInvoice("inv1");
@@ -177,7 +152,7 @@ public class CashuLightningClientTests
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.GetInvoice("inv1");
 
         Assert.Null(result);
@@ -186,17 +161,17 @@ public class CashuLightningClientTests
     [Fact]
     public async Task ListInvoices_ReturnsAll()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.AddRange(
-                MakeInvoice("i1", "UNPAID"),
+                MakeInvoice("i1"),
                 MakeInvoice("i2", "ISSUED"),
                 MakeInvoice("i3", "EXPIRED"));
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.ListInvoices();
 
         Assert.Equal(3, result.Length);
@@ -205,17 +180,17 @@ public class CashuLightningClientTests
     [Fact]
     public async Task ListInvoices_PendingOnly_ReturnsOnlyUnpaid()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.AddRange(
-                MakeInvoice("i1", "UNPAID"),
+                MakeInvoice("i1"),
                 MakeInvoice("i2", "ISSUED"),
-                MakeInvoice("i3", "UNPAID"));
+                MakeInvoice("i3"));
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
 
         Assert.Equal(2, result.Length);
@@ -226,7 +201,7 @@ public class CashuLightningClientTests
     [Fact]
     public async Task GetPayment_ExistingHash_ReturnsPayment()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         var hash = "deadbeef";
         await using (var ctx = db.CreateContext())
         {
@@ -234,7 +209,7 @@ public class CashuLightningClientTests
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.GetPayment(hash);
 
         Assert.NotNull(result);
@@ -244,8 +219,8 @@ public class CashuLightningClientTests
     [Fact]
     public async Task GetPayment_MissingHash_ReturnsNull()
     {
-        var db = CreateDb();
-        var client = CreateClient(db, CreateMintListener(db));
+        var db = TestDbFactory.Create();
+        var client = CreateClient(db, db.CreateMintListener());
 
         var result = await client.GetPayment("nonexistent");
 
@@ -255,17 +230,17 @@ public class CashuLightningClientTests
     [Fact]
     public async Task ListPayments_ReturnsAll()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningPayments.AddRange(
-                MakePayment("h1", "PAID"),
+                MakePayment("h1"),
                 MakePayment("h2", "PENDING"),
-                MakePayment("h3", "PAID"));
+                MakePayment("h3"));
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.ListPayments(new ListPaymentsParams { IncludePending = true });
 
         Assert.Equal(3, result.Length);
@@ -274,17 +249,17 @@ public class CashuLightningClientTests
     [Fact]
     public async Task ListPayments_ExcludePending_ReturnsOnlyPaid()
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningPayments.AddRange(
-                MakePayment("h1", "PAID"),
+                MakePayment("h1"),
                 MakePayment("h2", "PENDING"),
-                MakePayment("h3", "PAID"));
+                MakePayment("h3"));
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.ListPayments(new ListPaymentsParams { IncludePending = false });
 
         Assert.Equal(2, result.Length);
@@ -297,17 +272,172 @@ public class CashuLightningClientTests
     [InlineData("EXPIRED", LightningInvoiceStatus.Expired)]
     public async Task GetInvoice_QuoteState_MapsToCorrectStatus(string quoteState, LightningInvoiceStatus expected)
     {
-        var db = CreateDb();
+        var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(MakeInvoice("inv", quoteState));
             await ctx.SaveChangesAsync();
         }
 
-        var client = CreateClient(db, CreateMintListener(db));
+        var client = CreateClient(db, db.CreateMintListener());
         var result = await client.GetInvoice("inv");
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.Status);
+    }
+
+    [Fact]
+    public void ToString_WithSecret_ContainsSecretPart()
+    {
+        var db = TestDbFactory.Create();
+        var secret = Guid.NewGuid().ToString();
+        var client = CreateClient(db, db.CreateMintListener(), secret: secret);
+
+        var str = client.ToString();
+
+        Assert.Contains("type=cashu", str);
+        Assert.Contains($"mint-url={FakeMint}", str);
+        Assert.Contains($"store-id={StoreId}", str);
+        Assert.Contains($"secret={secret}", str);
+    }
+
+    [Fact]
+    public void ToString_WithoutSecret_NoSecretPart()
+    {
+        var db = TestDbFactory.Create();
+        var client = CreateClient(db, db.CreateMintListener(), secret: null);
+
+        var str = client.ToString();
+
+        Assert.Contains("type=cashu", str);
+        Assert.DoesNotContain("secret=", str);
+    }
+
+    [Fact]
+    public async Task GetPayment_DifferentStore_ReturnsNull()
+    {
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            var p = MakePayment("hash1");
+            p.StoreId = "other-store";
+            ctx.LightningPayments.Add(p);
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.GetPayment("hash1");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ListPayments_OnlyReturnsOwnStore()
+    {
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            var foreign = MakePayment("h2");
+            foreign.StoreId = "other-store";
+            ctx.LightningPayments.AddRange(MakePayment("h1"), foreign);
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = true });
+
+        Assert.Single(result);
+        Assert.Equal("h1", result[0].PaymentHash);
+    }
+
+    [Fact]
+    public async Task ListInvoices_OnlyReturnsOwnStore()
+    {
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            var foreign = MakeInvoice("i2");
+            foreign.StoreId = "other-store";
+            ctx.LightningInvoices.AddRange(MakeInvoice("i1"), foreign);
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.ListInvoices();
+
+        Assert.Single(result);
+        Assert.Equal("i1", result[0].Id);
+    }
+
+    [Fact]
+    public async Task ListInvoices_PendingOnly_IncludesPaidState()
+    {
+        // PAID = ln payment received by mint, tokens not yet issued — still "pending" from ours perspective
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            ctx.LightningInvoices.Add(MakeInvoice("i1", "PAID"));
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task ListInvoices_PendingOnly_ExcludesIssuedInvoices()
+    {
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            ctx.LightningInvoices.AddRange(
+                MakeInvoice("i1"),
+                MakeInvoice("i2", "ISSUED"));
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+
+        Assert.Single(result);
+        Assert.Equal("i1", result[0].Id);
+    }
+
+    [Fact]
+    public async Task ListInvoices_PendingOnly_ExcludesExpiredInvoices()
+    {
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            var expired = MakeInvoice("i1");
+            expired.Expiry = DateTimeOffset.UtcNow.AddSeconds(-60);
+            ctx.LightningInvoices.Add(expired);
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task ListPayments_DefaultParams_IncludesPendingPayments()
+    {
+        var db = TestDbFactory.Create();
+        await using (var ctx = db.CreateContext())
+        {
+            ctx.LightningPayments.AddRange(
+                MakePayment("h1"),
+                MakePayment("h2", "PENDING"));
+            await ctx.SaveChangesAsync();
+        }
+
+        var client = CreateClient(db, db.CreateMintListener());
+        var result = await client.ListPayments();
+
+        Assert.Equal(2, result.Length);
     }
 }

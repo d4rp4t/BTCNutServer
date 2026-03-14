@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
@@ -19,7 +19,22 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Plugin\BTCPayServer.Plugins.Cashu\BTCPayServer.Plugins.Cashu.csproj" />
+        <ProjectReference Include="..\Plugin\BTCPayServer.Plugins.Cashu\BTCPayServer.Plugins.Cashu.csproj" />
+        <ProjectReference Include="..\submodules\btcpayserver\BTCPayServer\BTCPayServer.csproj">
+            <Properties>StaticWebAssetsEnabled=false</Properties>
+        </ProjectReference>
+        <ProjectReference Include="..\submodules\btcpayserver\BTCPayServer.Tests\BTCPayServer.Tests.csproj">
+            <Properties>StaticWebAssetsEnabled=false</Properties>
+        </ProjectReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="docker-compose.yml">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Update="xunit.runner.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>
