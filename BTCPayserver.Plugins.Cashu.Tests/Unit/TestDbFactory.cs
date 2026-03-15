@@ -18,10 +18,31 @@ public class TestDbFactory : CashuDbContextFactory
         Action<Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder>? _ = null)
         => new(_opts);
 
-    public static TestDbFactory Create() =>
-        new(new DbContextOptionsBuilder<CashuDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options);
+    public static TestDbFactory Create()
+    {
+        DbContextOptions<CashuDbContext> opts;
+        var pgConnStr = Environment.GetEnvironmentVariable("TESTS_POSTGRES");
+        if (pgConnStr != null)
+        {
+            var builder = new Npgsql.NpgsqlConnectionStringBuilder(pgConnStr)
+            {
+                Database = $"cashu_test_{Guid.NewGuid():N}"
+            };
+            opts = new DbContextOptionsBuilder<CashuDbContext>()
+                .UseNpgsql(builder.ConnectionString)
+                .Options;
+        }
+        else
+        {
+            opts = new DbContextOptionsBuilder<CashuDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+        }
+
+        using var ctx = new CashuDbContext(opts);
+        ctx.Database.EnsureCreated();
+        return new TestDbFactory(opts);
+    }
 
     public MintListener CreateMintListener() =>
         new(this, NullLogger<MintListener>.Instance);
