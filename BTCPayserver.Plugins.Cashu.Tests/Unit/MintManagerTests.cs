@@ -170,7 +170,7 @@ public class MintManagerTests
         await manager.SaveKeyset("https://new-mint.test/", SomeKeysetId(), MakeKeyset(), "sat");
 
         await using var ctx = db.CreateContext();
-        Assert.True(await ctx.Mints.AnyAsync(m => m.Url == "https://new-mint.test/"));
+        Assert.True(await ctx.Mints.AnyAsync(m => m.Url == "https://new-mint.test"));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class MintManagerTests
         var info = await manager.GetKeysetInfo(keysetId);
 
         Assert.NotNull(info);
-        Assert.Equal("https://mint.test/", info!.Value.MintUrl);
+        Assert.Equal("https://mint.test", info!.Value.MintUrl);
         Assert.Equal("sat", info.Value.Unit);
     }
 
@@ -212,8 +212,8 @@ public class MintManagerTests
         var map = await manager.MapKeysetIdsToMints([id1, id2]);
 
         Assert.Equal(2, map.Count);
-        Assert.Equal("https://mint-a.test/", map[id1.ToString()].MintUrl);
-        Assert.Equal("https://mint-b.test/", map[id2.ToString()].MintUrl);
+        Assert.Equal("https://mint-a.test", map[id1.ToString()].MintUrl);
+        Assert.Equal("https://mint-b.test", map[id2.ToString()].MintUrl);
         Assert.Equal("usd", map[id2.ToString()].Unit);
     }
 
