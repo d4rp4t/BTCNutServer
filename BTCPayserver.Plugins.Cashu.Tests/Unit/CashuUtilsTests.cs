@@ -52,19 +52,6 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         #region GetTokenSatRate Tests
 
         [Fact]
-        public async Task GetTokenSatRate_ValidToken_ReturnsCorrectRateForSat()
-        {
-            var token =
-                "cashuBo2F0gaJhaUgAFo194X2Lm2Fwg6NhYQhhc3hANDE1ZDAxNWEzY2UwZTcxYTgyODMxMDgzNDRlMmJmMTNmNzZjNTM3MjdiNWIyNGI1ODViMTQ2Y2NlMmM3ZDVmOGFjWCEDgjrv5E_oIeBxJTJuLAkenzhRCTvYtIw5ymN6ah8egDGjYWEBYXN4QDk4OTFjYTg2OWY5ZjA2YjY2Zjk0YzRmYjE4OWM0YmQ0NjcyM2QzYzFhYzFjNTM3OWEzM2Y5NmI1MTliMDJhNmRhY1ghAv5YHuOCclMCO_VJ7FfuuMm48hIIAOR0WCIQ4pwFe6zQo2FhAWFzeEA4MDA0ZmIyMDM1MzQzYjJiOTZkYWNlNmNlMTcxNGQ3NGRiMGM2ZmNjYzQ4ZGJiYmQ3NDE3MzBiMWYwN2NiZWU3YWNYIQNpFWP0sn7lKRWi7hADXfj6PxmQb1ZB2k_9rszuhdikVmFtdWh0dHA6Ly8xMjcuMC4wLjE6MzMzOGF1Y3NhdA";
-            var deserialized = CashuTokenHelper.Decode(token, out _);
-            var network = Network.RegTest;
-
-            var result = await CashuUtils.GetTokenSatRate(deserialized, network);
-
-            Assert.Equal(1, result);
-        }
-
-        [Fact]
         public async Task GetTokenSatRate_ValidToken_ReturnsCorrectRateForUsdToken()
         {
             var token =

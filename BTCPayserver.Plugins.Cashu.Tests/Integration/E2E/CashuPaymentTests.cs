@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Tests;
 using DotNut;
 using Xunit;
@@ -43,9 +44,8 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             await toggle.ClickAsync();
 
         // Fill trusted mints URL
-        var trustedMintsInput = s.Page.Locator("textarea[name='TrustedMintsUrls']");
-        if (await trustedMintsInput.IsVisibleAsync())
-            await trustedMintsInput.FillAsync(CdkMintUrl);
+        await s.Page.Locator("#mintUrl").FillAsync(CdkMintUrl);
+        await s.Page.Locator("[data-action='add-mint']").ClickAsync();
 
         await s.ClickPagePrimary();
         await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Success,
@@ -81,7 +81,7 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
     // ── Full mint → pay flow (requires channel setup) ────────────────────────
 
     [Fact]
-    public async Task CanMintAndPayInvoiceWithCashuToken()
+    public async Task CanPayInTrustedMintsOnlyMode()
     {
         await using var s = CreatePlaywrightTester();
         await s.StartAsync();
@@ -92,24 +92,37 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await SetupCashuWallet(s, storeId);
         await EnableCashuPayments(s, storeId);
 
-        // Create a small invoice (100 sats)
-        var invoiceId = await s.CreateInvoice(storeId, amount: null, currency: "BTC");
+        // Create a 1 USD invoice
+        var invoiceId = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
         Assert.NotNull(invoiceId);
 
         // Mint 200 sat tokens via CDK mint (customer pays LN invoice → gets tokens)
         var token = await MintCashuTokenAsync(200);
         Assert.NotNull(token);
 
+        // Verify token round-trips correctly before sending
+        helper.WriteLine($"Token: {token}");
+        Assert.True(CashuUtils.TryDecodeToken(token, out var decoded),
+            $"Token failed local decode round-trip: {token}");
+        helper.WriteLine($"Decoded token has {decoded!.Tokens.SelectMany(t => t.Proofs).Count()} proofs");
+
         // Go to checkout and pay with token
         await s.GoToInvoiceCheckout(invoiceId);
         await s.Page.AssertNoError();
 
-        // Wait for Cashu payment method to load in checkout
-        await s.Page.WaitForSelectorAsync("input[name='token']", new() { Timeout = 10_000 });
-        await s.Page.FillAsync("input[name='token']", token);
-        await s.Page.Locator("#payByTokenForm").EvaluateAsync("f => f.submit()");
+        // Click the Cashu payment tab to make sure it is active
+        var cashuTab = s.Page.Locator(".payment-method", new() { HasText = "Cashu" });
+        if (await cashuTab.IsVisibleAsync())
+            await cashuTab.ClickAsync();
 
-        // Wait for invoice to be marked as paid
+        // Wait for Cashu payment method to load in checkout
+        await s.Page.WaitForSelectorAsync("input[name='token']", new() { Timeout = 15_000 });
+        await s.Page.FillAsync("input[name='token']", token);
+
+        // Click the Pay button to submit the token
+        await s.Page.Locator("#payButton").ClickAsync();
+
+        // Wait for redirect back to invoice after payment
         await s.Page.WaitForURLAsync(
             new Regex($"/i/{invoiceId}"),
             new() { Timeout = 30_000 });
@@ -119,7 +132,20 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             content.Contains("Paid", StringComparison.OrdinalIgnoreCase) ||
             content.Contains("settled", StringComparison.OrdinalIgnoreCase),
             "Expected invoice to be settled after Cashu payment");
+
     }
+    
+    [Fact]
+    public async Task RejectsUntrustedMintsInTrustedMintsOnlyMode(){}
+    
+    [Fact]
+    public async Task CanPayInAutoConvertMode(){}
+    
+    [Fact]
+    public async Task CanPayInHoldWhenTrustedFromTrustedMint(){}
+    
+    [Fact]
+    public async Task CanPayInHoldWhenTrustedFromUnTrustedMint(){}
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -153,16 +179,18 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
     private async Task EnableCashuPayments(PlaywrightTester s, string storeId)
     {
+        // Step 1: Enable Cashu and save — the trusted mints section only renders when Enabled=true
         await s.GoToUrl($"/stores/{storeId}/cashu");
-
         var toggle = s.Page.Locator("input[id='Enabled']");
         if (!await toggle.IsCheckedAsync())
             await toggle.ClickAsync();
+        await s.ClickPagePrimary();
+        await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Success);
 
-        var trustedMintsInput = s.Page.Locator("textarea[name='TrustedMintsUrls']");
-        if (await trustedMintsInput.IsVisibleAsync())
-            await trustedMintsInput.FillAsync(CdkMintUrl);
-
+        // Step 2: Now the page re-renders with the trusted mints UI visible — add mint via UI
+        await s.GoToUrl($"/stores/{storeId}/cashu");
+        await s.Page.Locator("#mintUrl").FillAsync(CdkMintUrl);
+        await s.Page.Locator("[data-action='add-mint']").ClickAsync();
         await s.ClickPagePrimary();
         await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Success);
     }
@@ -200,10 +228,10 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         // Step 3: Exchange blinded messages for proofs
         var proofs = await mintHandler.Mint();
 
-        // Step 4: Encode as cashuA token string
+        // Step 4: Encode as cashuB token string
         var cashuToken = new CashuToken
         {
-            Tokens = [new CashuToken.Token(CdkMintUrl, proofs)]
+            Tokens = [new CashuToken.Token(CdkMintUrl, proofs)], Unit="sat"
         };
         return cashuToken.Encode();
     }

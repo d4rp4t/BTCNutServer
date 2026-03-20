@@ -275,6 +275,7 @@ services:
 
   # cdk mint backed by mint_lnd
   cdk-mint:
+    platform: linux/amd64
     image: cashubtc/mintd:latest
     restart: unless-stopped
     ports:
