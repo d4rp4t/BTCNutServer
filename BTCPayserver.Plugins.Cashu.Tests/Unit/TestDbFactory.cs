@@ -46,4 +46,7 @@ public class TestDbFactory : CashuDbContextFactory
 
     public MintListener CreateMintListener() =>
         new(this, NullLogger<MintListener>.Instance);
+
+    public MintManager CreateMintManager() =>
+        new(this);
 }

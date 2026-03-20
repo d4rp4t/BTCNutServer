@@ -20,10 +20,10 @@ public class CashuLightningClientTests
         new("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
     private static CashuLightningClient CreateClient(
-        CashuDbContextFactory db,
+        TestDbFactory db,
         MintListener listener,
         string? secret = null) =>
-        new(FakeMint, StoreId, secret, db, listener, TestNetwork);
+        new(FakeMint, StoreId, secret, db, listener, db.CreateMintManager(), TestNetwork);
 
     private static async Task SeedWalletConfig(CashuDbContextFactory db, Guid? secret = null)
     {
