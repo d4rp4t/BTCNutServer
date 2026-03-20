@@ -218,6 +218,8 @@ public class CashuPaymentService(
             throw new CashuPaymentException("Could not get keysets!", ex);
         }
 
+        ctx.Token.Proofs = CashuUtils.ExpandShortKeysetIds(ctx.Token.Proofs, keysets);
+
         if (!CashuUtils.ValidateFees(ctx.Token.Proofs, ctx.PaymentMethodConfig.FeeConfing, keysets, out var keysetFee))
         {
             logs.PayServer.LogError(
@@ -346,18 +348,6 @@ public class CashuPaymentService(
             logs.PayServer.LogError("Could not find lightning client!");
             throw new CashuPluginException("Could not find lightning client!");
         }
-        // Pre-validate keyset ownership before melt to avoid losing funds on conflict
-        try
-        {
-            var inputKeysetIds = opCtx.Token.Proofs.Select(p => p.Id).Distinct().ToList();
-            await mintManager.ValidateKeysetOwnership(opCtx.Token.Mint, inputKeysetIds);
-        }
-        catch (InvalidOperationException ex)
-        {
-            logs.PayServer.LogError("(Cashu) Keyset ID conflict detected before melt: {msg}", ex.Message);
-            throw new CashuPaymentException("Token rejected: keyset ID conflict detected. Funds were not spent.", ex);
-        }
-
         List<GetKeysetsResponse.KeysetItemResponse> keysets;
         try
         {
@@ -371,6 +361,20 @@ public class CashuPaymentService(
         {
             logs.PayServer.LogError("(Cashu) Couldn't get keysets. Funds weren't spent.");
             throw new CashuPaymentException("Could not get keysets!", ex);
+        }
+
+        opCtx.Token.Proofs = CashuUtils.ExpandShortKeysetIds(opCtx.Token.Proofs, keysets);
+
+        // Pre-validate keyset ownership before melt to avoid losing funds on conflict
+        try
+        {
+            var inputKeysetIds = opCtx.Token.Proofs.Select(p => p.Id).Distinct().ToList();
+            await mintManager.ValidateKeysetOwnership(opCtx.Token.Mint, inputKeysetIds);
+        }
+        catch (InvalidOperationException ex)
+        {
+            logs.PayServer.LogError("(Cashu) Keyset ID conflict detected before melt: {msg}", ex.Message);
+            throw new CashuPaymentException("Token rejected: keyset ID conflict detected. Funds were not spent.", ex);
         }
 
         var meltQuoteResponse = await opCtx.Wallet.CreateMaxMeltQuote(opCtx, keysets);
