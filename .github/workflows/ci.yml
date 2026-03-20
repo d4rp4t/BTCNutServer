@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, "feat/**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-
+
+      - name: Restore
+        run: dotnet restore BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj
+
+      - name: Build
+        run: dotnet build BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-restore -c Release -maxcpucount:1 /p:BuildInParallel=false
+
+      - name: Run unit tests
+        run: dotnet test BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-build -c Release --filter "Category!=Integration" -v n
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build test image
+        working-directory: BTCPayserver.Plugins.Cashu.Tests
+        run: docker compose build tests
+
+      - name: Run integration tests
+        working-directory: BTCPayserver.Plugins.Cashu.Tests
+        run: docker compose run --rm tests
+
+      - name: Cleanup
+        if: always()
+        working-directory: BTCPayserver.Plugins.Cashu.Tests
+        run: docker compose down -v

@@ -1,0 +1,337 @@
+# run tests:  docker compose run --rm tests
+# dev infra:  docker compose up dev   (starts infra without running tests)
+#
+# lightning topology:
+#   customer_lnd <--channel--> mint_lnd  (backs both CDK and Nutshell mints)
+#   merchant_lnd                         (BTCPay's own LN wallet, for melt target)
+#
+# mint_lnd uses macaroons (no no-macaroons=1) + no-rest-tls so mints
+# can authenticate over plain HTTP without needing TLS cert sharing.
+
+services:
+
+  tests:
+    build:
+      context: ..
+      dockerfile: BTCPayserver.Plugins.Cashu.Tests/Dockerfile
+      args:
+        CONFIGURATION_NAME: Release
+    environment:
+      TESTS_BTCRPCCONNECTION: server=http://bitcoind:43782;ceiwHEbqWI83:DwubwWsoo3
+      TESTS_BTCNBXPLORERURL: http://nbxplorer:32838/
+      TESTS_POSTGRES: User ID=postgres;Include Error Detail=true;Host=postgres;Port=5432;Database=btcpayserver
+      TESTS_EXPLORER_POSTGRES: User ID=postgres;Include Error Detail=true;Host=postgres;Port=5432;Database=nbxplorer
+      TESTS_HOSTNAME: tests
+      TESTS_INCONTAINER: "true"
+      TEST_MERCHANTLND: "http://merchant_lnd:8080/"
+      TEST_CUSTOMERLND: "http://customer_lnd:8080/"
+      TEST_CDK_MINT_URL: "http://cdk-mint:3338"
+      TEST_NUTSHELL_MINT_URL: "http://nutshell-mint:3339"
+      TEST_MINT_LND_MACAROON: "/mint_lnd_data/data/chain/bitcoin/regtest/admin.macaroon"
+    volumes:
+      - "mint_lnd_datadir:/mint_lnd_data:ro"
+    expose:
+      - "80"
+    depends_on:
+      - dev
+    extra_hosts:
+      - "tests:127.0.0.1"
+    networks:
+      default:
+      custom:
+        ipv4_address: 172.24.0.18
+
+  channel-setup:
+    image: alpine:3.20
+    command: ["/bin/sh", "-c", "apk add --no-cache curl jq >/dev/null 2>&1 && /scripts/channel-setup.sh"]
+    environment:
+      CUSTOMER_LND_URL: "http://customer_lnd:8080"
+      MERCHANT_LND_URL: "http://merchant_lnd:8080"
+      MINT_LND_URL: "http://mint_lnd:8080"
+      MINT_MACAROON_PATH: "/mint_lnd_data/data/chain/bitcoin/regtest/admin.macaroon"
+      BTC_RPC_URL: "http://bitcoind:43782"
+      BTC_RPC_USER: "ceiwHEbqWI83"
+      BTC_RPC_PASS: "DwubwWsoo3"
+    volumes:
+      - "./channel-setup.sh:/scripts/channel-setup.sh:ro"
+      - "mint_lnd_datadir:/mint_lnd_data:ro"
+    depends_on:
+      mint_lnd:
+        condition: service_healthy
+      customer_lnd:
+        condition: service_started
+      merchant_lnd:
+        condition: service_started
+
+  dev:
+    image: alpine:3.7
+    command: [ "/bin/sh", "-c", "trap : TERM INT; while :; do sleep 2073600; done & wait" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nbxplorer:
+        condition: service_started
+      channel-setup:
+        condition: service_completed_successfully
+      cdk-mint:
+        condition: service_started
+      nutshell-mint:
+        condition: service_started
+
+  nbxplorer:
+    image: nicolasdorier/nbxplorer:2.5.29
+    restart: unless-stopped
+    ports:
+      - "32838:32838"
+    expose:
+      - "32838"
+    environment:
+      NBXPLORER_NETWORK: regtest
+      NBXPLORER_CHAINS: "btc"
+      NBXPLORER_BTCRPCURL: http://bitcoind:43782/
+      NBXPLORER_BTCNODEENDPOINT: bitcoind:39388
+      NBXPLORER_BTCRPCUSER: ceiwHEbqWI83
+      NBXPLORER_BTCRPCPASSWORD: DwubwWsoo3
+      NBXPLORER_BIND: 0.0.0.0:32838
+      NBXPLORER_MINGAPSIZE: 5
+      NBXPLORER_MAXGAPSIZE: 10
+      NBXPLORER_VERBOSE: 1
+      NBXPLORER_POSTGRES: User ID=postgres;Include Error Detail=true;Host=postgres;Port=5432;Database=nbxplorer
+      NBXPLORER_EXPOSERPC: 1
+      NBXPLORER_NOAUTH: 1
+    depends_on:
+      bitcoind:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  bitcoind:
+    restart: unless-stopped
+    image: btcpayserver/bitcoin:30.2
+    environment:
+      BITCOIN_NETWORK: regtest
+      BITCOIN_WALLETDIR: "/data/wallets"
+      BITCOIN_EXTRA_ARGS: |-
+        rpcuser=ceiwHEbqWI83
+        rpcpassword=DwubwWsoo3
+        rpcport=43782
+        rpcbind=0.0.0.0:43782
+        rpcallowip=0.0.0.0/0
+        port=39388
+        whitelist=0.0.0.0/0
+        zmqpubrawblock=tcp://0.0.0.0:28332
+        zmqpubrawtx=tcp://0.0.0.0:28333
+        deprecatedrpc=signrawtransaction
+        fallbackfee=0.0002
+        minrelaytxfee=0.00001000
+    ports:
+      - "43782:43782"
+      - "39388:39388"
+    expose:
+      - "43782"
+      - "39388"
+      - "28332"
+      - "28333"
+    volumes:
+      - "bitcoin_datadir:/data"
+
+  postgres:
+    image: postgres:18.1
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "39372:5432"
+    expose:
+      - "5432"
+    volumes:
+      - "postgres_test_datadir:/var/lib/postgresql"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # btcpay's own lightning wallet - target for melt/automelt operations
+  merchant_lnd:
+    image: btcpayserver/lnd:v0.19.3-beta
+    restart: unless-stopped
+    environment:
+      LND_CHAIN: "btc"
+      LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://nbxplorer:32838/"
+      LND_REST_LISTEN_HOST: http://merchant_lnd:8080
+      LND_EXTRA_ARGS: |
+        restlisten=merchant_lnd:8080
+        rpclisten=127.0.0.1:10008
+        rpclisten=merchant_lnd:10009
+        bitcoin.node=bitcoind
+        bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=ceiwHEbqWI83
+        bitcoind.rpcpass=DwubwWsoo3
+        bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+        bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+        externalip=merchant_lnd:9735
+        bitcoin.defaultchanconfs=1
+        no-macaroons=1
+        debuglevel=debug
+        trickledelay=1000
+        no-rest-tls=1
+    ports:
+      - "35531:8080"
+      - "53280:10009"
+      - "30894:9735"
+    expose:
+      - "8080"
+      - "9735"
+      - "10009"
+    volumes:
+      - "merchant_lnd_datadir:/data"
+      - "bitcoin_datadir:/deps/.bitcoin"
+    depends_on:
+      - bitcoind
+
+  # simulates a customer paying lightning invoices
+  customer_lnd:
+    image: btcpayserver/lnd:v0.19.3-beta
+    restart: unless-stopped
+    environment:
+      LND_CHAIN: "btc"
+      LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://nbxplorer:32838/"
+      LND_REST_LISTEN_HOST: http://customer_lnd:8080
+      LND_EXTRA_ARGS: |
+        restlisten=customer_lnd:8080
+        rpclisten=127.0.0.1:10008
+        rpclisten=customer_lnd:10009
+        bitcoin.node=bitcoind
+        bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=ceiwHEbqWI83
+        bitcoind.rpcpass=DwubwWsoo3
+        bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+        bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+        externalip=customer_lnd:9735
+        bitcoin.defaultchanconfs=1
+        no-macaroons=1
+        debuglevel=debug
+        trickledelay=1000
+        no-rest-tls=1
+    ports:
+      - "35532:8080"
+      - "30895:9735"
+    expose:
+      - "8080"
+      - "9735"
+      - "10009"
+    volumes:
+      - "customer_lnd_datadir:/root/.lnd"
+      - "bitcoin_datadir:/deps/.bitcoin"
+    depends_on:
+      - bitcoind
+
+  # dedicated lnd for cashu mints - macaroons ON, no TLS (HTTP REST)
+  # both cdk and nutshell share this node via volume mount
+  mint_lnd:
+    image: btcpayserver/lnd:v0.19.3-beta
+    restart: unless-stopped
+    environment:
+      LND_CHAIN: "btc"
+      LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://nbxplorer:32838/"
+      LND_REST_LISTEN_HOST: http://mint_lnd:8080
+      LND_EXTRA_ARGS: |
+        restlisten=mint_lnd:8080
+        rpclisten=127.0.0.1:10008
+        rpclisten=mint_lnd:10009
+        bitcoin.node=bitcoind
+        bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=ceiwHEbqWI83
+        bitcoind.rpcpass=DwubwWsoo3
+        bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+        bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+        externalip=mint_lnd:9735
+        bitcoin.defaultchanconfs=1
+        debuglevel=debug
+        trickledelay=1000
+        no-rest-tls=1
+        tlsextradomain=mint_lnd
+    ports:
+      - "35533:8080"
+      - "30896:9735"
+    expose:
+      - "8080"
+      - "9735"
+      - "10009"
+    volumes:
+      - "mint_lnd_datadir:/data"
+      - "bitcoin_datadir:/deps/.bitcoin"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /data/data/chain/bitcoin/regtest/admin.macaroon"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+    depends_on:
+      - bitcoind
+
+  # cdk mint backed by mint_lnd
+  cdk-mint:
+    image: cashubtc/mintd:latest
+    restart: unless-stopped
+    ports:
+      - "3338:3338"
+    expose:
+      - "3338"
+    environment:
+      CDK_MINTD_LN_BACKEND: lnd
+      CDK_MINTD_LND_ADDRESS: https://mint_lnd:10009
+      CDK_MINTD_LND_MACAROON_FILE: /lnd/data/chain/bitcoin/regtest/admin.macaroon
+      CDK_MINTD_LND_CERT_FILE: /lnd/tls.cert
+      CDK_MINTD_LISTEN_HOST: 0.0.0.0
+      CDK_MINTD_LISTEN_PORT: 3338
+      CDK_MINTD_MNEMONIC: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+      CDK_MINTD_DATABASE: sqlite
+      CDK_MINTD_INPUT_FEE_PPK: 100
+    volumes:
+      - "mint_lnd_datadir:/lnd"
+    depends_on:
+      mint_lnd:
+        condition: service_healthy
+
+  # nutshell mint backed by mint_lnd
+  nutshell-mint:
+    image: cashubtc/nutshell:latest
+    restart: unless-stopped
+    ports:
+      - "3339:3339"
+    expose:
+      - "3339"
+    environment:
+      MINT_BACKEND_BOLT11_SAT: LndRestWallet
+      MINT_LND_REST_ENDPOINT: http://mint_lnd:8080
+      MINT_LND_REST_MACAROON: /lnd/data/chain/bitcoin/regtest/admin.macaroon
+      MINT_LND_REST_VERIFY_SSL: "false"
+      MINT_LISTEN_HOST: 0.0.0.0
+      MINT_LISTEN_PORT: 3339
+      MINT_PRIVATE_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
+    volumes:
+      - "mint_lnd_datadir:/lnd"
+    command: poetry run mint
+    depends_on:
+      mint_lnd:
+        condition: service_healthy
+
+volumes:
+  bitcoin_datadir:
+  merchant_lnd_datadir:
+  customer_lnd_datadir:
+  mint_lnd_datadir:
+  postgres_test_datadir:
+
+networks:
+  default:
+    driver: bridge
+  custom:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/16
