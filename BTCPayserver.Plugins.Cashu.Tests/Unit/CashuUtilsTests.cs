@@ -1,24 +1,21 @@
-using System.Text.Json;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Errors;
 using DotNut;
 using NBitcoin;
 using Xunit;
-using Mnemonic = DotNut.NBitcoin.BIP39.Mnemonic;
 
 namespace BTCPayserver.Plugins.Cashu.Tests
 {
     public class CashuUtilsTests
     {
+        private static readonly DotNut.PubKey AnyPubKey =
+            new("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798");
 
-        public static string keysetPath =
-            "/Users/d4rp4t/RiderProjects/BTCNutServer/BTCPayserver.Plugins.Cashu.Tests/Unit/keys.json";
-
-        public Keyset testKeyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
-
-        public Mnemonic testMnemonic =
-            new Mnemonic(
-                "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        private static Keyset MakeKeyset() => new()
+        {
+            [1] = AnyPubKey, [2] = AnyPubKey, [4] = AnyPubKey, [8] = AnyPubKey,
+            [16] = AnyPubKey, [32] = AnyPubKey, [64] = AnyPubKey,
+        };
 
         #region GetCashuHttpClient Tests
 
@@ -159,7 +156,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_ExactAmount_ReturnsCorrectSplit()
         {
             var inputAmounts = new List<ulong> { 1, 2, 4, 16, 32, 64 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
             ulong requestedAmount = 30;
 
             var (keep, send) = CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount);
@@ -173,7 +170,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_ExactAmount_ReturnsCorrectSplit2()
         {
             var inputAmounts = new List<ulong> { 1, 2, 4, 16, 32, 64 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
             ulong requestedAmount = 20;
 
             var (keep, send) = CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount);
@@ -192,7 +189,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_NoChange_ReturnsEmptyKeepList()
         {
             var inputAmounts = new List<ulong> { 64 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
 
             ulong requestedAmount = 64;
 
@@ -207,7 +204,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_InvalidInputs_ThrowsInvalidOperationException()
         {
             var inputAmounts = new List<ulong> { 10, 20 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
 
             ulong requestedAmount = 50;
 
@@ -219,7 +216,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_AmountGreaterThanInput_ThrowsInvalidOperationException()
         {
             var inputAmounts = new List<ulong> { 2, 4 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
 
             ulong requestedAmount = 8;
 

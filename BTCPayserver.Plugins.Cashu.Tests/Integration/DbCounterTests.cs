@@ -10,18 +10,10 @@ namespace BTCPayserver.Plugins.Cashu.Tests.Integration;
 [Trait("Category", "Integration")]
 public class DbCounterTests
 {
-    private static TestDbFactory CreateDb()
-    {
-        var pgConnStr = Environment.GetEnvironmentVariable("TESTS_POSTGRES")
-            ?? throw new InvalidOperationException(
-                "TESTS_POSTGRES environment variable is required for DbCounter integration tests.");
-        return TestDbFactory.Create();
-    }
-
     [Fact]
     public async Task IncrementCounter_NewEntry_CreatesAndIncrements()
     {
-        var dbf = CreateDb();
+        var dbf = TestDbFactory.Create();
         var storeId = "test_store";
         var keysetId = new KeysetId("0000000000000001");
         var counter = new DbCounter(dbf, storeId);
@@ -40,7 +32,7 @@ public class DbCounterTests
     [Fact]
     public async Task IncrementCounter_ExistingEntry_Increments()
     {
-        var dbf = CreateDb();
+        var dbf = TestDbFactory.Create();
         var storeId = "test_store";
         var keysetId = new KeysetId("0000000000000001");
 
