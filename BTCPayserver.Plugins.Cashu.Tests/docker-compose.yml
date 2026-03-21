@@ -11,7 +11,6 @@
 services:
 
   tests:
-    platform: linux/amd64
     build:
       context: ..
       dockerfile: BTCPayserver.Plugins.Cashu.Tests/Dockerfile
@@ -43,7 +42,6 @@ services:
         ipv4_address: 172.24.0.18
 
   channel-setup:
-    platform: linux/arm64
     image: alpine:3.20
     command: ["/bin/sh", "-c", "apk add --no-cache curl jq >/dev/null 2>&1 && /scripts/channel-setup.sh"]
     environment:
@@ -66,8 +64,7 @@ services:
         condition: service_started
 
   dev:
-    platform: linux/arm64
-    image: alpine:3.7
+    image: alpine:3.20
     command: [ "/bin/sh", "-c", "trap : TERM INT; while :; do sleep 2073600; done & wait" ]
     depends_on:
       postgres:
@@ -82,7 +79,6 @@ services:
         condition: service_started
 
   nbxplorer:
-    platform: linux/arm64
     image: nicolasdorier/nbxplorer:2.5.29
     restart: unless-stopped
     ports:
@@ -110,7 +106,6 @@ services:
         condition: service_healthy
 
   bitcoind:
-    platform: linux/arm64
     restart: unless-stopped
     image: btcpayserver/bitcoin:30.2
     environment:
@@ -141,7 +136,6 @@ services:
       - "bitcoin_datadir:/data"
 
   postgres:
-    platform: linux/arm64
     image: postgres:18.1
     environment:
       POSTGRES_HOST_AUTH_METHOD: trust
@@ -159,7 +153,6 @@ services:
 
   # btcpay's own lightning wallet - target for melt/automelt operations
   merchant_lnd:
-    platform: linux/arm64
     image: btcpayserver/lnd:v0.19.3-beta
     restart: unless-stopped
     environment:
@@ -199,7 +192,6 @@ services:
 
   # simulates a customer paying lightning invoices
   customer_lnd:
-    platform: linux/arm64
     image: btcpayserver/lnd:v0.19.3-beta
     restart: unless-stopped
     environment:
@@ -239,7 +231,6 @@ services:
   # dedicated lnd for cashu mints - macaroons ON, no TLS (HTTP REST)
   # both cdk and nutshell share this node via volume mount
   mint_lnd:
-    platform: linux/arm64
     image: btcpayserver/lnd:v0.19.3-beta
     restart: unless-stopped
     environment:
