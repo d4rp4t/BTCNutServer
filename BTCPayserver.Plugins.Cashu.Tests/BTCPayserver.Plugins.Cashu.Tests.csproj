@@ -1,25 +1,39 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
 
-    <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-    </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BTCPayServer.Lightning.All" Version="1.6.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.11" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 
-    <ItemGroup>
-<!--      <PackageReference Include="BTCPayServer.Lightning.All" Version="1.6.9" />-->
-      <PackageReference Include="BTCPayServer.Lightning.All" Version="1.6.11" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
-      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-      <PackageReference Include="xunit" Version="2.9.3" />
-      <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Plugin\BTCPayServer.Plugins.Cashu\BTCPayServer.Plugins.Cashu.csproj" />
+    <ProjectReference Include="..\submodules\btcpayserver\BTCPayServer\BTCPayServer.csproj">
+      <Properties>StaticWebAssetsEnabled=false</Properties>
+    </ProjectReference>
+    <ProjectReference Include="..\submodules\btcpayserver\BTCPayServer.Tests\BTCPayServer.Tests.csproj">
+      <Properties>StaticWebAssetsEnabled=false</Properties>
+    </ProjectReference>
+  </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\Plugin\BTCPayServer.Plugins.Cashu\BTCPayServer.Plugins.Cashu.csproj" />
-    </ItemGroup>
-
+  <ItemGroup>
+    <None Update="docker-compose.yml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

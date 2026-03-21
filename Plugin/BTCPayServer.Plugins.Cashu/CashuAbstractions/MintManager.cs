@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using DotNut;
-using DotNut.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
 namespace BTCPayServer.Plugins.Cashu.CashuAbstractions;

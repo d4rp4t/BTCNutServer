@@ -54,9 +54,9 @@ public class CashuPaymentMethodHandler(
             due,
             invoice.Id,
             paymentPath,
-            cashuConfig.PaymentModel == CashuPaymentModel.AutoConvert
-                ? null
-                : cashuConfig.TrustedMintsUrls // don't suggest any mints when AutoConvert
+            cashuConfig.PaymentModel == CashuPaymentModel.TrustedMintsOnly
+                ? cashuConfig.TrustedMintsUrls :
+                null // add mints only if trustedmintsonly
         );
         context.Prompt.Destination = paymentRequest;
 

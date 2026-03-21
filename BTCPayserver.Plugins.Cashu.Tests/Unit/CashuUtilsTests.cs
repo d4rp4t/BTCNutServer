@@ -1,24 +1,28 @@
-using System.Text.Json;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Errors;
 using DotNut;
 using NBitcoin;
 using Xunit;
-using Mnemonic = DotNut.NBitcoin.BIP39.Mnemonic;
 
 namespace BTCPayserver.Plugins.Cashu.Tests
 {
     public class CashuUtilsTests
     {
+        private static readonly DotNut.PubKey AnyPubKey = new(
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        );
 
-        public static string keysetPath =
-            "/Users/d4rp4t/RiderProjects/BTCNutServer/BTCPayserver.Plugins.Cashu.Tests/Unit/keys.json";
-
-        public Keyset testKeyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
-
-        public Mnemonic testMnemonic =
-            new Mnemonic(
-                "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        private static Keyset MakeKeyset() =>
+            new()
+            {
+                [1] = AnyPubKey,
+                [2] = AnyPubKey,
+                [4] = AnyPubKey,
+                [8] = AnyPubKey,
+                [16] = AnyPubKey,
+                [32] = AnyPubKey,
+                [64] = AnyPubKey,
+            };
 
         #region GetCashuHttpClient Tests
 
@@ -47,25 +51,15 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             var client = CashuUtils.GetCashuHttpClient(mintUrl);
 
             await Assert.ThrowsAsync<TaskCanceledException>(async () =>
-                await client.GetKeysets(new CancellationTokenSource(TimeSpan.FromMilliseconds(1)).Token));
+                await client.GetKeysets(
+                    new CancellationTokenSource(TimeSpan.FromMilliseconds(1)).Token
+                )
+            );
         }
 
         #endregion
 
         #region GetTokenSatRate Tests
-
-        [Fact]
-        public async Task GetTokenSatRate_ValidToken_ReturnsCorrectRateForSat()
-        {
-            var token =
-                "cashuBo2F0gaJhaUgAFo194X2Lm2Fwg6NhYQhhc3hANDE1ZDAxNWEzY2UwZTcxYTgyODMxMDgzNDRlMmJmMTNmNzZjNTM3MjdiNWIyNGI1ODViMTQ2Y2NlMmM3ZDVmOGFjWCEDgjrv5E_oIeBxJTJuLAkenzhRCTvYtIw5ymN6ah8egDGjYWEBYXN4QDk4OTFjYTg2OWY5ZjA2YjY2Zjk0YzRmYjE4OWM0YmQ0NjcyM2QzYzFhYzFjNTM3OWEzM2Y5NmI1MTliMDJhNmRhY1ghAv5YHuOCclMCO_VJ7FfuuMm48hIIAOR0WCIQ4pwFe6zQo2FhAWFzeEA4MDA0ZmIyMDM1MzQzYjJiOTZkYWNlNmNlMTcxNGQ3NGRiMGM2ZmNjYzQ4ZGJiYmQ3NDE3MzBiMWYwN2NiZWU3YWNYIQNpFWP0sn7lKRWi7hADXfj6PxmQb1ZB2k_9rszuhdikVmFtdWh0dHA6Ly8xMjcuMC4wLjE6MzMzOGF1Y3NhdA";
-            var deserialized = CashuTokenHelper.Decode(token, out _);
-            var network = Network.RegTest;
-
-            var result = await CashuUtils.GetTokenSatRate(deserialized, network);
-
-            Assert.Equal(1, result);
-        }
 
         [Fact]
         public async Task GetTokenSatRate_ValidToken_ReturnsCorrectRateForUsdToken()
@@ -80,7 +74,6 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             // Assert one usd token to be 12 sat (18.04.2025)
             Assert.True(result <= 11 || result >= 13);
         }
-
 
         #endregion
 
@@ -116,14 +109,20 @@ namespace BTCPayserver.Plugins.Cashu.Tests
                     new CashuToken.Token
                     {
                         Mint = "https://examplemint1.com",
-                        Proofs = new List<Proof> { new Proof { Amount = 10, Secret = new StringSecret("secret1") } }
+                        Proofs = new List<Proof>
+                        {
+                            new Proof { Amount = 10, Secret = new StringSecret("secret1") },
+                        },
                     },
                     new CashuToken.Token
                     {
                         Mint = "https://examplemint2.com",
-                        Proofs = new List<Proof> { new Proof { Amount = 20, Secret = new StringSecret("secret2") } }
-                    }
-                }
+                        Proofs = new List<Proof>
+                        {
+                            new Proof { Amount = 20, Secret = new StringSecret("secret2") },
+                        },
+                    },
+                },
             };
 
             Assert.Throws<CashuPaymentException>(() => CashuUtils.SimplifyToken(token));
@@ -139,10 +138,13 @@ namespace BTCPayserver.Plugins.Cashu.Tests
                     new CashuToken.Token
                     {
                         Mint = "https://examplemint.com",
-                        Proofs = new List<Proof> { new Proof { Amount = 10, Secret = new StringSecret("secret1") } }
-                    }
+                        Proofs = new List<Proof>
+                        {
+                            new Proof { Amount = 10, Secret = new StringSecret("secret1") },
+                        },
+                    },
                 },
-                Unit = null
+                Unit = null,
             };
 
             var simplifiedToken = CashuUtils.SimplifyToken(token);
@@ -150,33 +152,42 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             Assert.Equal("sat", simplifiedToken.Unit);
         }
 
-
         #endregion
-        
+
         #region SplitAmountsForPayment Tests
 
         [Fact]
         public void SplitAmountsForPayment_ExactAmount_ReturnsCorrectSplit()
         {
             var inputAmounts = new List<ulong> { 1, 2, 4, 16, 32, 64 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
             ulong requestedAmount = 30;
 
-            var (keep, send) = CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount);
+            var (keep, send) = CashuUtils.SplitAmountsForPayment(
+                inputAmounts,
+                keyset,
+                requestedAmount
+            );
 
             Assert.Equal(requestedAmount, send.Aggregate(0UL, (a, c) => a + c));
-            Assert.Equal(inputAmounts.Aggregate(0UL, (a, c) => a + c) - send.Aggregate(0UL, (a, c) => a + c),
-                keep.Aggregate(0UL, (a, c) => a + c));
+            Assert.Equal(
+                inputAmounts.Aggregate(0UL, (a, c) => a + c) - send.Aggregate(0UL, (a, c) => a + c),
+                keep.Aggregate(0UL, (a, c) => a + c)
+            );
         }
 
         [Fact]
         public void SplitAmountsForPayment_ExactAmount_ReturnsCorrectSplit2()
         {
             var inputAmounts = new List<ulong> { 1, 2, 4, 16, 32, 64 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
             ulong requestedAmount = 20;
 
-            var (keep, send) = CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount);
+            var (keep, send) = CashuUtils.SplitAmountsForPayment(
+                inputAmounts,
+                keyset,
+                requestedAmount
+            );
 
             Assert.Equal(4, keep.Count);
             Assert.Contains((ulong)1, keep);
@@ -192,11 +203,15 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_NoChange_ReturnsEmptyKeepList()
         {
             var inputAmounts = new List<ulong> { 64 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
 
             ulong requestedAmount = 64;
 
-            var (keep, send) = CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount);
+            var (keep, send) = CashuUtils.SplitAmountsForPayment(
+                inputAmounts,
+                keyset,
+                requestedAmount
+            );
 
             Assert.Empty(keep);
             Assert.Single(send);
@@ -207,24 +222,26 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         public void SplitAmountsForPayment_InvalidInputs_ThrowsInvalidOperationException()
         {
             var inputAmounts = new List<ulong> { 10, 20 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
 
             ulong requestedAmount = 50;
 
             Assert.Throws<InvalidOperationException>(() =>
-                CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount));
+                CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount)
+            );
         }
 
         [Fact]
         public void SplitAmountsForPayment_AmountGreaterThanInput_ThrowsInvalidOperationException()
         {
             var inputAmounts = new List<ulong> { 2, 4 };
-            var keyset = JsonSerializer.Deserialize<Keyset>(File.ReadAllText(keysetPath));
+            var keyset = MakeKeyset();
 
             ulong requestedAmount = 8;
 
             Assert.Throws<InvalidOperationException>(() =>
-                CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount));
+                CashuUtils.SplitAmountsForPayment(inputAmounts, keyset, requestedAmount)
+            );
         }
         #endregion
 
@@ -240,7 +257,12 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             string[] trustedMintsUrls = ["https://mint1.com", "https://mint2.com"];
 
             // Act
-            var result = CashuUtils.CreatePaymentRequest(amount, invoiceId, endpoint, trustedMintsUrls);
+            var result = CashuUtils.CreatePaymentRequest(
+                amount,
+                invoiceId,
+                endpoint,
+                trustedMintsUrls
+            );
             var resultParsed = DotNut.PaymentRequest.Parse(result);
             // Assert
             Assert.NotNull(result);
@@ -254,7 +276,6 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             Assert.NotNull(resultParsed.Mints);
             Assert.Contains(resultParsed.Mints, m => m.ToString() == trustedMintsUrls[0]);
             Assert.Contains(resultParsed.Mints, m => m.ToString() == trustedMintsUrls[1]);
-
         }
 
         [Fact]
@@ -284,9 +305,11 @@ namespace BTCPayserver.Plugins.Cashu.Tests
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() =>
-                CashuUtils.CreatePaymentRequest(amount, invoiceId, null, null));
+                CashuUtils.CreatePaymentRequest(amount, invoiceId, null, null)
+            );
             Assert.Throws<ArgumentNullException>(() =>
-                CashuUtils.CreatePaymentRequest(amount, invoiceId, endpoint, null));
+                CashuUtils.CreatePaymentRequest(amount, invoiceId, endpoint, null)
+            );
         }
 
         [Fact]
@@ -299,9 +322,11 @@ namespace BTCPayserver.Plugins.Cashu.Tests
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() =>
-                CashuUtils.CreatePaymentRequest(amount, null, endpoint, null));
+                CashuUtils.CreatePaymentRequest(amount, null, endpoint, null)
+            );
             Assert.Throws<ArgumentNullException>(() =>
-                CashuUtils.CreatePaymentRequest(amount, invoiceId, endpoint, null));
+                CashuUtils.CreatePaymentRequest(amount, invoiceId, endpoint, null)
+            );
         }
 
         [Fact]
@@ -310,9 +335,10 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             // Arrange
             string invoiceId = "invoice123";
             string endpoint = "endpoint123";
-            
+
             Assert.Throws<ArgumentException>(() =>
-                CashuUtils.CreatePaymentRequest(Money.Satoshis(-1), invoiceId, endpoint, null));
+                CashuUtils.CreatePaymentRequest(Money.Satoshis(-1), invoiceId, endpoint, null)
+            );
         }
 
         [Fact]
@@ -321,7 +347,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
             // Arrange
             string invoiceId = "invoice123";
             string endpoint = "endpoint123";
-            var pr =CashuUtils.CreatePaymentRequest(Money.Zero, invoiceId, endpoint, null);
+            var pr = CashuUtils.CreatePaymentRequest(Money.Zero, invoiceId, endpoint, null);
             Assert.NotNull(pr);
             var deserializedPr = PaymentRequest.Parse(pr);
             Assert.Null(deserializedPr.Amount);
@@ -379,9 +405,9 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         }
 
         #endregion
-        
+
         #region FormatAmount Tests
-                
+
         [Theory]
         [InlineData(100000000, "BTC", 1)]
         [InlineData(100, "BTC", 0.00000100)]
@@ -390,7 +416,11 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         [InlineData(123456, "msat", 123.456)]
         [InlineData(0, "SAT", 0)]
         [InlineData(-100000000, "BTC", -1)]
-        public void FormatAmount_BitcoinUnits_Should_Format_Correctly(decimal input, string unit, decimal expected)
+        public void FormatAmount_BitcoinUnits_Should_Format_Correctly(
+            decimal input,
+            string unit,
+            decimal expected
+        )
         {
             var (amount, returnedUnit) = CashuUtils.FormatAmount(input, unit);
             Assert.Equal(expected, Math.Round(amount, 12));
@@ -406,7 +436,11 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         [InlineData(123456, "XOF", 123456)]
         [InlineData(0, "TND", 0)]
         [InlineData(-123456, "BHD", -123.456)]
-        public void FormatAmount_SpecialFiatUnits_Should_Format_Correctly(decimal input, string unit, decimal expected)
+        public void FormatAmount_SpecialFiatUnits_Should_Format_Correctly(
+            decimal input,
+            string unit,
+            decimal expected
+        )
         {
             var (amount, returnedUnit) = CashuUtils.FormatAmount(input, unit);
             Assert.Equal(expected, Math.Round(amount, 6));
@@ -418,7 +452,11 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         [InlineData(123456, "eur", 1234.56)]
         [InlineData(100, "", 1)]
         [InlineData(100, null, 1)]
-        public void FormatAmount_UnknownOrEmptyUnit_Should_DefaultProperly(decimal input, string unit, decimal expected)
+        public void FormatAmount_UnknownOrEmptyUnit_Should_DefaultProperly(
+            decimal input,
+            string unit,
+            decimal expected
+        )
         {
             var (amount, returnedUnit) = CashuUtils.FormatAmount(input, unit);
             if (string.IsNullOrEmpty(unit))

@@ -42,7 +42,7 @@ public static class CashuUtils
     {
         var simplifiedToken = SimplifyToken(token);
 
-        return await GetTokenSatRate(simplifiedToken.Mint, simplifiedToken.Unit ?? "sat", Network.Main);
+        return await GetTokenSatRate(simplifiedToken.Mint, simplifiedToken.Unit ?? "sat", network);
     }
 
     public static async Task<LightMoney> GetTokenSatRate(string mint, string unit, Network network)

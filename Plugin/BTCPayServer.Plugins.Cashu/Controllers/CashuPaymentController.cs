@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BTCPayServer.Plugins.Cashu.Controllers;
 
 [EnableCors(CorsPolicies.All)]
+[IgnoreAntiforgeryToken]
 public class CashuPaymentController : Controller
 {
     public CashuPaymentController(CashuPaymentService cashuPaymentService)
