@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Tests;
 using DotNut;
+using NBitcoin;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,8 +13,9 @@ namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 [Collection(nameof(NonParallelizableCollectionDefinition))]
 public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 {
-    private static readonly string TestMnemonic =
-        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    // Use a fresh random mnemonic per test run to avoid "outputs already signed" errors
+    // when mint containers retain state between runs (deterministic outputs collide on reuse).
+    private readonly string TestMnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
 
     private string CdkMintUrl =>
         Environment.GetEnvironmentVariable("TEST_CDK_MINT_URL") ?? "http://localhost:3338";
@@ -117,8 +119,18 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.WaitForSelectorAsync("input[name='token']", new() { Timeout = 15_000 });
         await s.Page.FillAsync("input[name='token']", token);
 
-        // Click the Pay button to submit the token
+        // Click the Pay button and verify response
+        var responseTask = s.Page.WaitForResponseAsync(
+            r => r.Url.Contains("cashu/pay-invoice"),
+            new() { Timeout = 30_000 });
         await s.Page.Locator("#payButton").ClickAsync();
+        var response = await responseTask;
+
+        if ((int)response.Status >= 400)
+        {
+            var body = await response.TextAsync();
+            Assert.Fail($"Payment request failed with status {response.Status}: {body}");
+        }
 
         // Wait for redirect back to invoice after payment
         await s.Page.WaitForURLAsync(
@@ -220,6 +232,7 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
     private async Task SetupCashuWallet(PlaywrightTester s, string storeId)
     {
+        helper.WriteLine($"Using mnemonic: {TestMnemonic}");
         await s.GoToUrl($"/stores/{storeId}/cashu/getting-started");
         await s.Page.ClickAsync("#ImportWalletOptionsLink");
 
@@ -312,7 +325,19 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         await s.Page.WaitForSelectorAsync("input[name='token']", new() { Timeout = 15_000 });
         await s.Page.FillAsync("input[name='token']", token);
+
+        // Listen for navigation response to detect server errors
+        var responseTask = s.Page.WaitForResponseAsync(
+            r => r.Url.Contains("cashu/pay-invoice"),
+            new() { Timeout = 30_000 });
         await s.Page.Locator("#payButton").ClickAsync();
+        var response = await responseTask;
+
+        if ((int)response.Status >= 400)
+        {
+            var body = await response.TextAsync();
+            Assert.Fail($"Payment request failed with status {response.Status}: {body}");
+        }
 
         await s.Page.WaitForURLAsync(
             new Regex($"/i/{invoiceId}"),

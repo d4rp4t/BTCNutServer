@@ -3,7 +3,6 @@ using BTCPayServer.Tests;
 using Microsoft.Playwright;
 using Xunit;
 using Xunit.Abstractions;
-using static Microsoft.Playwright.Assertions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 

@@ -46,8 +46,7 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.GoToUrl($"/stores/{storeId}/cashu");
         await s.Page.AssertNoError();
     }
-
-
+    
     internal async Task SetupCashuWalletAsync(PlaywrightTester s, string storeId)
     {
         await s.GoToUrl($"/stores/{storeId}/cashu/getting-started");
