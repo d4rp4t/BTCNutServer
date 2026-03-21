@@ -13,23 +13,29 @@ public class MintManagerTests
         "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
     private static Keyset MakeKeyset() => new() { [1] = new PubKey(ValidPubKeyHex) };
+
     private static KeysetId SomeKeysetId() => new("000000000000001a");
 
     private static async Task SeedMintWithKeyset(
-        CashuDbContextFactory db, string mintUrl, KeysetId keysetId)
+        CashuDbContextFactory db,
+        string mintUrl,
+        KeysetId keysetId
+    )
     {
         await using var ctx = db.CreateContext();
         var mint = new Mint(mintUrl);
         ctx.Mints.Add(mint);
         await ctx.SaveChangesAsync();
-        ctx.MintKeys.Add(new MintKeys
-        {
-            MintId = mint.Id,
-            Mint = mint,
-            KeysetId = keysetId,
-            Unit = "sat",
-            Keyset = MakeKeyset(),
-        });
+        ctx.MintKeys.Add(
+            new MintKeys
+            {
+                MintId = mint.Id,
+                Mint = mint,
+                KeysetId = keysetId,
+                Unit = "sat",
+                Keyset = MakeKeyset(),
+            }
+        );
         await ctx.SaveChangesAsync();
     }
 
@@ -157,8 +163,9 @@ public class MintManagerTests
 
         await manager.SaveKeyset("https://mint-a.test/", keysetId, MakeKeyset(), "sat");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => manager.SaveKeyset("https://mint-b.test/", keysetId, MakeKeyset(), "sat"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.SaveKeyset("https://mint-b.test/", keysetId, MakeKeyset(), "sat")
+        );
     }
 
     [Fact]
@@ -268,8 +275,9 @@ public class MintManagerTests
         await SeedMintWithKeyset(db, "https://mint-a.test/", keysetId);
         await manager.GetOrCreateMint("https://mint-b.test/");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => manager.ValidateKeysetOwnership("https://mint-b.test/", [keysetId]));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            manager.ValidateKeysetOwnership("https://mint-b.test/", [keysetId])
+        );
     }
 
     [Fact]

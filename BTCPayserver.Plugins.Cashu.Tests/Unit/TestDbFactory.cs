@@ -15,8 +15,9 @@ public class TestDbFactory : CashuDbContextFactory
         : base(Options.Create(new DatabaseOptions())) => _opts = opts;
 
     public override CashuDbContext CreateContext(
-        Action<Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder>? _ = null)
-        => new(_opts);
+        Action<Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.NpgsqlDbContextOptionsBuilder>? _ =
+            null
+    ) => new(_opts);
 
     public static TestDbFactory Create()
     {
@@ -26,7 +27,7 @@ public class TestDbFactory : CashuDbContextFactory
         {
             var builder = new Npgsql.NpgsqlConnectionStringBuilder(pgConnStr)
             {
-                Database = $"cashu_test_{Guid.NewGuid():N}"
+                Database = $"cashu_test_{Guid.NewGuid():N}",
             };
             opts = new DbContextOptionsBuilder<CashuDbContext>()
                 .UseNpgsql(builder.ConnectionString)
@@ -44,9 +45,7 @@ public class TestDbFactory : CashuDbContextFactory
         return new TestDbFactory(opts);
     }
 
-    public MintListener CreateMintListener() =>
-        new(this, NullLogger<MintListener>.Instance);
+    public MintListener CreateMintListener() => new(this, NullLogger<MintListener>.Instance);
 
-    public MintManager CreateMintManager() =>
-        new(this);
+    public MintManager CreateMintManager() => new(this);
 }

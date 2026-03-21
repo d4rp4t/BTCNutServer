@@ -12,33 +12,38 @@ namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 
 public class CashuLightningClientTests
 {
-
     private static readonly Uri FakeMint = new("https://fake-mint.test");
     private const string StoreId = "test-store";
     private static readonly Network TestNetwork = Network.RegTest;
-    private static readonly Mnemonic TestMnemonic =
-        new("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+    private static readonly Mnemonic TestMnemonic = new(
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    );
 
     private static CashuLightningClient CreateClient(
         TestDbFactory db,
         MintListener listener,
-        string? secret = null) =>
-        new(FakeMint, StoreId, secret, db, listener, db.CreateMintManager(), TestNetwork);
+        string? secret = null
+    ) => new(FakeMint, StoreId, secret, db, listener, db.CreateMintManager(), TestNetwork);
 
     private static async Task SeedWalletConfig(CashuDbContextFactory db, Guid? secret = null)
     {
         await using var ctx = db.CreateContext();
-        ctx.CashuWalletConfig.Add(new CashuWalletConfig
-        {
-            StoreId = StoreId,
-            WalletMnemonic = TestMnemonic,
-            Verified = true,
-            LightningClientSecret = secret,
-        });
+        ctx.CashuWalletConfig.Add(
+            new CashuWalletConfig
+            {
+                StoreId = StoreId,
+                WalletMnemonic = TestMnemonic,
+                Verified = true,
+                LightningClientSecret = secret,
+            }
+        );
         await ctx.SaveChangesAsync();
     }
 
-    private static CashuLightningClientInvoice MakeInvoice(string invoiceId, string quoteState = "UNPAID") =>
+    private static CashuLightningClientInvoice MakeInvoice(
+        string invoiceId,
+        string quoteState = "UNPAID"
+    ) =>
         new()
         {
             StoreId = StoreId,
@@ -54,7 +59,10 @@ public class CashuLightningClientTests
             Expiry = DateTimeOffset.UtcNow.AddHours(1),
         };
 
-    private static CashuLightningClientPayment MakePayment(string hash, string quoteState = "PAID") =>
+    private static CashuLightningClientPayment MakePayment(
+        string hash,
+        string quoteState = "PAID"
+    ) =>
         new()
         {
             StoreId = StoreId,
@@ -66,7 +74,7 @@ public class CashuLightningClientTests
             Amount = LightMoney.Satoshis(50),
             CreatedAt = DateTimeOffset.UtcNow,
         };
-    
+
     [Fact]
     public async Task Pay_NullSecret_ThrowsInvalidOperation()
     {
@@ -74,8 +82,9 @@ public class CashuLightningClientTests
         await SeedWalletConfig(db, secret: Guid.NewGuid());
         var client = CreateClient(db, db.CreateMintListener(), secret: null);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.Pay("lnbc...", CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.Pay("lnbc...", CancellationToken.None)
+        );
     }
 
     [Fact]
@@ -85,31 +94,33 @@ public class CashuLightningClientTests
         await SeedWalletConfig(db, secret: Guid.NewGuid());
         var client = CreateClient(db, db.CreateMintListener(), secret: Guid.NewGuid().ToString());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.Pay("lnbc...", CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.Pay("lnbc...", CancellationToken.None)
+        );
     }
 
     [Fact]
     public async Task Pay_NoWalletConfig_ThrowsInvalidOperation()
     {
-        var db = TestDbFactory.Create(); 
+        var db = TestDbFactory.Create();
         var client = CreateClient(db, db.CreateMintListener(), secret: Guid.NewGuid().ToString());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.Pay("lnbc...", CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.Pay("lnbc...", CancellationToken.None)
+        );
     }
 
     [Fact]
     public async Task Pay_NoSecret_InConfig_ThrowsInvalidOperation()
     {
         var db = TestDbFactory.Create();
-        await SeedWalletConfig(db, secret: null); 
+        await SeedWalletConfig(db, secret: null);
         var client = CreateClient(db, db.CreateMintListener(), secret: Guid.NewGuid().ToString());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.Pay("lnbc...", CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.Pay("lnbc...", CancellationToken.None)
+        );
     }
-
 
     [Fact]
     public async Task GetInvoice_ExistingId_ReturnsInvoice()
@@ -157,7 +168,7 @@ public class CashuLightningClientTests
 
         Assert.Null(result);
     }
-    
+
     [Fact]
     public async Task ListInvoices_ReturnsAll()
     {
@@ -167,7 +178,8 @@ public class CashuLightningClientTests
             ctx.LightningInvoices.AddRange(
                 MakeInvoice("i1"),
                 MakeInvoice("i2", "ISSUED"),
-                MakeInvoice("i3", "EXPIRED"));
+                MakeInvoice("i3", "EXPIRED")
+            );
             await ctx.SaveChangesAsync();
         }
 
@@ -186,7 +198,8 @@ public class CashuLightningClientTests
             ctx.LightningInvoices.AddRange(
                 MakeInvoice("i1"),
                 MakeInvoice("i2", "ISSUED"),
-                MakeInvoice("i3"));
+                MakeInvoice("i3")
+            );
             await ctx.SaveChangesAsync();
         }
 
@@ -196,7 +209,6 @@ public class CashuLightningClientTests
         Assert.Equal(2, result.Length);
         Assert.All(result, i => Assert.Equal(LightningInvoiceStatus.Unpaid, i.Status));
     }
-
 
     [Fact]
     public async Task GetPayment_ExistingHash_ReturnsPayment()
@@ -226,7 +238,7 @@ public class CashuLightningClientTests
 
         Assert.Null(result);
     }
-    
+
     [Fact]
     public async Task ListPayments_ReturnsAll()
     {
@@ -236,7 +248,8 @@ public class CashuLightningClientTests
             ctx.LightningPayments.AddRange(
                 MakePayment("h1"),
                 MakePayment("h2", "PENDING"),
-                MakePayment("h3"));
+                MakePayment("h3")
+            );
             await ctx.SaveChangesAsync();
         }
 
@@ -255,7 +268,8 @@ public class CashuLightningClientTests
             ctx.LightningPayments.AddRange(
                 MakePayment("h1"),
                 MakePayment("h2", "PENDING"),
-                MakePayment("h3"));
+                MakePayment("h3")
+            );
             await ctx.SaveChangesAsync();
         }
 
@@ -270,7 +284,10 @@ public class CashuLightningClientTests
     [InlineData("ISSUED", LightningInvoiceStatus.Paid)]
     [InlineData("UNPAID", LightningInvoiceStatus.Unpaid)]
     [InlineData("EXPIRED", LightningInvoiceStatus.Expired)]
-    public async Task GetInvoice_QuoteState_MapsToCorrectStatus(string quoteState, LightningInvoiceStatus expected)
+    public async Task GetInvoice_QuoteState_MapsToCorrectStatus(
+        string quoteState,
+        LightningInvoiceStatus expected
+    )
     {
         var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
@@ -392,9 +409,7 @@ public class CashuLightningClientTests
         var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
-            ctx.LightningInvoices.AddRange(
-                MakeInvoice("i1"),
-                MakeInvoice("i2", "ISSUED"));
+            ctx.LightningInvoices.AddRange(MakeInvoice("i1"), MakeInvoice("i2", "ISSUED"));
             await ctx.SaveChangesAsync();
         }
 
@@ -429,9 +444,7 @@ public class CashuLightningClientTests
         var db = TestDbFactory.Create();
         await using (var ctx = db.CreateContext())
         {
-            ctx.LightningPayments.AddRange(
-                MakePayment("h1"),
-                MakePayment("h2", "PENDING"));
+            ctx.LightningPayments.AddRange(MakePayment("h1"), MakePayment("h2", "PENDING"));
             await ctx.SaveChangesAsync();
         }
 

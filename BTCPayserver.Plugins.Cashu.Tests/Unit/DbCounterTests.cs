@@ -13,15 +13,17 @@ public class DbCounterTests
         var dbf = TestDbFactory.Create();
         var storeId = "test_store";
         var keysetId = new KeysetId("0000000000000001");
-        
+
         await using (var seedCtx = dbf.CreateContext())
         {
-            seedCtx.StoreKeysetCounters.Add(new StoreKeysetCounter
-            {
-                StoreId = storeId,
-                KeysetId = keysetId,
-                Counter = 42
-            });
+            seedCtx.StoreKeysetCounters.Add(
+                new StoreKeysetCounter
+                {
+                    StoreId = storeId,
+                    KeysetId = keysetId,
+                    Counter = 42,
+                }
+            );
             await seedCtx.SaveChangesAsync();
         }
 

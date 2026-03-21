@@ -11,7 +11,10 @@ namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 [Collection(nameof(NonParallelizableCollectionDefinition))]
 public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
 {
-    private readonly string TestMnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
+    private readonly string TestMnemonic = new Mnemonic(
+        Wordlist.English,
+        WordCount.Twelve
+    ).ToString();
 
     private string CdkMintUrl => PlaywrightTesterCashuUtils.GetCdkMintUrl();
 
@@ -65,7 +68,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         Assert.Contains("No funds available", content);
     }
 
-
     [Fact]
     public async Task WalletShowsBalanceAfterReceivingPayment()
     {
@@ -93,10 +95,11 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         helper.WriteLine($"Wallet balance: {amountText}");
 
         Assert.NotNull(amountText);
-        Assert.True(ulong.TryParse(amountText.Trim(), out var amount) && amount > 0,
-            $"Expected positive balance, got: {amountText}");
+        Assert.True(
+            ulong.TryParse(amountText.Trim(), out var amount) && amount > 0,
+            $"Expected positive balance, got: {amountText}"
+        );
     }
-
 
     [Fact]
     public async Task CanExportTokenFromWallet()
@@ -120,7 +123,10 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
 
         var exportBtn = s.Page.Locator("button[name='action'][value='SendToken']").First;
-        Assert.True(await exportBtn.IsVisibleAsync(), "Export button should be visible when wallet has funds");
+        Assert.True(
+            await exportBtn.IsVisibleAsync(),
+            "Export button should be visible when wallet has funds"
+        );
         await exportBtn.ClickAsync();
 
         // Should redirect to exported token page
@@ -150,7 +156,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         Assert.NotNull(mintUrl);
         Assert.Contains(new Uri(CdkMintUrl).Host, mintUrl);
     }
-
 
     [Fact]
     public async Task TokenExportHistoryShowsExportedTokens()
@@ -184,7 +189,10 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         // Details link should be visible
         var detailsLink = s.Page.Locator("a.btn:has-text('Details')").First;
-        Assert.True(await detailsLink.IsVisibleAsync(), "Details link should be visible in history");
+        Assert.True(
+            await detailsLink.IsVisibleAsync(),
+            "Details link should be visible in history"
+        );
 
         // Click Details and verify it navigates to token page
         await detailsLink.ClickAsync();
@@ -193,7 +201,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         Assert.True(await s.Page.Locator("#qrcode").IsVisibleAsync());
     }
-
 
     [Fact]
     public async Task CanCheckTokenStates()
@@ -229,7 +236,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
     }
 
-
     [Fact]
     public async Task CanRemoveSpentProofs()
     {
@@ -252,7 +258,10 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
 
         var removeBtn = s.Page.Locator("a", new() { HasText = "Remove spent ecash" });
-        Assert.True(await removeBtn.IsVisibleAsync(), "Remove spent ecash button should be visible");
+        Assert.True(
+            await removeBtn.IsVisibleAsync(),
+            "Remove spent ecash button should be visible"
+        );
         await removeBtn.ClickAsync();
 
         // Should redirect back to wallet with a status message
@@ -262,12 +271,12 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var content = await s.Page.ContentAsync();
         // Should show either "No spent proofs found" or "Removed X spent proof(s)"
         Assert.True(
-            content.Contains("No spent proofs", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("Removed", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("No proofs to check", StringComparison.OrdinalIgnoreCase),
-            "Expected a status message about spent proof removal");
+            content.Contains("No spent proofs", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("Removed", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("No proofs to check", StringComparison.OrdinalIgnoreCase),
+            "Expected a status message about spent proof removal"
+        );
     }
-
 
     [Fact]
     public async Task MintInfoApiReturnsValidData()
@@ -280,7 +289,8 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         // GetMintInfo requires auth (inherits [Authorize] from controller) — use Playwright page
         var mintInfoUrl = $"/cashu/mint-info?mintUrl={Uri.EscapeDataString(CdkMintUrl)}";
         var response = await s.Page.APIRequest.GetAsync(
-            s.ServerUri.AbsoluteUri.TrimEnd('/') + mintInfoUrl);
+            s.ServerUri.AbsoluteUri.TrimEnd('/') + mintInfoUrl
+        );
 
         Assert.Equal(200, response.Status);
         var json = await response.TextAsync();

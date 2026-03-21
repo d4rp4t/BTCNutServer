@@ -1,6 +1,6 @@
-using BTCPayserver.Plugins.Cashu.Tests.Unit;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data.Models;
+using BTCPayserver.Plugins.Cashu.Tests.Unit;
 using DotNut;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -23,8 +23,9 @@ public class DbCounterTests
         Assert.Equal((uint)5, result);
 
         await using var ctx = dbf.CreateContext();
-        var entry = await ctx.StoreKeysetCounters.FirstOrDefaultAsync(
-            x => x.StoreId == storeId && x.KeysetId == keysetId);
+        var entry = await ctx.StoreKeysetCounters.FirstOrDefaultAsync(x =>
+            x.StoreId == storeId && x.KeysetId == keysetId
+        );
         Assert.NotNull(entry);
         Assert.Equal((uint)5, entry.Counter);
     }
@@ -38,12 +39,14 @@ public class DbCounterTests
 
         await using (var seedCtx = dbf.CreateContext())
         {
-            seedCtx.StoreKeysetCounters.Add(new StoreKeysetCounter
-            {
-                StoreId = storeId,
-                KeysetId = keysetId,
-                Counter = 10
-            });
+            seedCtx.StoreKeysetCounters.Add(
+                new StoreKeysetCounter
+                {
+                    StoreId = storeId,
+                    KeysetId = keysetId,
+                    Counter = 10,
+                }
+            );
             await seedCtx.SaveChangesAsync();
         }
 

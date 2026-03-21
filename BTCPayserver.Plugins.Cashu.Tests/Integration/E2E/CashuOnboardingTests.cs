@@ -11,7 +11,10 @@ namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 [Collection(nameof(NonParallelizableCollectionDefinition))]
 public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helper)
 {
-    private readonly string TestMnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
+    private readonly string TestMnemonic = new Mnemonic(
+        Wordlist.English,
+        WordCount.Twelve
+    ).ToString();
 
     private string CdkMintUrl => PlaywrightTesterCashuUtils.GetCdkMintUrl();
     private string NutshellMintUrl => PlaywrightTesterCashuUtils.GetNutshellMintUrl();
@@ -60,7 +63,9 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         }
 
         // submit confirmation — #proceed becomes active after 4 words selected
-        await s.Page.WaitForFunctionAsync("document.getElementById('proceed').classList.contains('active')");
+        await s.Page.WaitForFunctionAsync(
+            "document.getElementById('proceed').classList.contains('active')"
+        );
         await s.Page.ClickAsync("#proceed");
 
         // should land on cashu store config
@@ -97,7 +102,10 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 
         // click finish, should redirect to cashu store config
         await s.Page.ClickAsync(".finish-btn");
-        await s.Page.WaitForURLAsync(new Regex($"/stores/{storeId}/cashu$"), new() { Timeout = 10_000 });
+        await s.Page.WaitForURLAsync(
+            new Regex($"/stores/{storeId}/cashu$"),
+            new() { Timeout = 10_000 }
+        );
         await s.Page.AssertNoError();
     }
 
@@ -109,7 +117,11 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 
         // Step 1: Mint on both mints AND start BTCPay server in parallel
         var cdkTask = PlaywrightTesterCashuUtils.MintWithMnemonicAsync(mnemonic, 200, CdkMintUrl);
-        var nutshellTask = PlaywrightTesterCashuUtils.MintWithMnemonicAsync(mnemonic, 200, NutshellMintUrl);
+        var nutshellTask = PlaywrightTesterCashuUtils.MintWithMnemonicAsync(
+            mnemonic,
+            200,
+            NutshellMintUrl
+        );
         await using var s = CreatePlaywrightTester();
         var startTask = s.StartAsync();
 
@@ -132,7 +144,8 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         // The textarea binds as a single List<string> element — multi-line fails URI validation.
         // Replace the textarea with separate hidden inputs so ASP.NET binds each URL separately.
         var mintUrls = new[] { CdkMintUrl, NutshellMintUrl };
-        await s.Page.EvaluateAsync(@"(urls) => {
+        await s.Page.EvaluateAsync(
+            @"(urls) => {
             const form = document.querySelector('form');
             const textarea = form.querySelector('textarea[name=""MintUrls""]');
             textarea.remove();
@@ -143,7 +156,9 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
                 input.value = url;
                 form.appendChild(input);
             });
-        }", mintUrls);
+        }",
+            mintUrls
+        );
 
         await s.Page.ClickAsync("#proceed");
 
@@ -173,20 +188,27 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
             var balanceSats = long.Parse(balanceText.Replace(",", "").Replace(" sats", ""));
 
             // Find the matching minted amount (URL may be normalized with trailing slash)
-            var matchingEntry = mintedAmounts
-                .FirstOrDefault(e => url.Contains(new Uri(e.Key).Host));
-            Assert.False(string.IsNullOrEmpty(matchingEntry.Key),
-                $"Unexpected mint URL on restore page: {url}");
+            var matchingEntry = mintedAmounts.FirstOrDefault(e =>
+                url.Contains(new Uri(e.Key).Host)
+            );
+            Assert.False(
+                string.IsNullOrEmpty(matchingEntry.Key),
+                $"Unexpected mint URL on restore page: {url}"
+            );
 
             // Balance should be positive and at most the minted amount (swap fees reduce it)
-            Assert.True(balanceSats > 0,
-                $"Expected positive balance for {url}, got {balanceSats}");
-            Assert.True(balanceSats <= matchingEntry.Value,
-                $"Restored balance {balanceSats} exceeds minted amount {matchingEntry.Value} for {url}");
+            Assert.True(balanceSats > 0, $"Expected positive balance for {url}, got {balanceSats}");
+            Assert.True(
+                balanceSats <= matchingEntry.Value,
+                $"Restored balance {balanceSats} exceeds minted amount {matchingEntry.Value} for {url}"
+            );
         }
 
         await s.Page.ClickAsync(".finish-btn");
-        await s.Page.WaitForURLAsync(new Regex($"/stores/{storeId}/cashu$"), new() { Timeout = 10_000 });
+        await s.Page.WaitForURLAsync(
+            new Regex($"/stores/{storeId}/cashu$"),
+            new() { Timeout = 10_000 }
+        );
         await s.Page.AssertNoError();
 
         // Step 4: Navigate to wallet page and verify balance is displayed
@@ -199,7 +221,10 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 
         Assert.NotNull(walletBalanceText);
         var walletBalanceValue = decimal.Parse(walletBalanceText!.Trim().Replace(",", ""));
-        Assert.True(walletBalanceValue > 0, $"Expected positive wallet balance, got {walletBalanceValue}");
+        Assert.True(
+            walletBalanceValue > 0,
+            $"Expected positive wallet balance, got {walletBalanceValue}"
+        );
     }
 
     [Fact]
@@ -214,15 +239,19 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 
         await s.GoToUrl($"/stores/{storeId}/cashu/restore-wallet");
 
-        await PlaywrightTesterCashuUtils.FillRestoreFormAsync(s.Page,
+        await PlaywrightTesterCashuUtils.FillRestoreFormAsync(
+            s.Page,
             "invalid word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11",
-            CdkMintUrl);
+            CdkMintUrl
+        );
 
         await s.Page.ClickAsync("#proceed");
 
         // should stay on restore-wallet with an error alert
         Assert.Contains("restore-wallet", s.Page.Url);
-        await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Error);
+        await s.FindAlertMessage(
+            BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Error
+        );
     }
 
     [Fact]
@@ -252,7 +281,10 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.Page.Locator("input[type='submit'][value='Finish']").ClickAsync();
 
         // Should redirect to store config with Cashu enabled
-        await s.Page.WaitForURLAsync(new Regex($"/stores/{storeId}/cashu"), new() { Timeout = 10_000 });
+        await s.Page.WaitForURLAsync(
+            new Regex($"/stores/{storeId}/cashu"),
+            new() { Timeout = 10_000 }
+        );
         await s.Page.AssertNoError();
 
         // Verify Cashu is enabled and TrustedMintsOnly mode is set

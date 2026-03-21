@@ -16,10 +16,14 @@ public static class PlaywrightTesterCashuUtils
         Environment.GetEnvironmentVariable("TEST_NUTSHELL_MINT_URL") ?? "http://localhost:3339";
 
     public static string GetCustomerLndUrl() =>
-        (Environment.GetEnvironmentVariable("TEST_CUSTOMERLND") ?? "http://localhost:35532").TrimEnd('/');
+        (
+            Environment.GetEnvironmentVariable("TEST_CUSTOMERLND") ?? "http://localhost:35532"
+        ).TrimEnd('/');
 
     public static string GetMerchantLndUrl() =>
-        (Environment.GetEnvironmentVariable("TEST_MERCHANTLND") ?? "http://localhost:35531/").TrimEnd('/');
+        (
+            Environment.GetEnvironmentVariable("TEST_MERCHANTLND") ?? "http://localhost:35531/"
+        ).TrimEnd('/');
 
     public static async Task GoToCashuSettings(this PlaywrightTester s, string storeId)
     {
@@ -78,7 +82,9 @@ public static class PlaywrightTesterCashuUtils
         }
 
         // submit confirmation — #proceed becomes active after 4 words selected
-        await s.Page.WaitForFunctionAsync("document.getElementById('proceed').classList.contains('active')");
+        await s.Page.WaitForFunctionAsync(
+            "document.getElementById('proceed').classList.contains('active')"
+        );
         await s.Page.ClickAsync("#proceed");
 
         // should land on cashu store config
@@ -86,8 +92,12 @@ public static class PlaywrightTesterCashuUtils
         await s.Page.AssertNoError();
     }
 
-    public static async Task RestoreCashuWallet(this PlaywrightTester s, string storeId,
-        string mnemonic, string mintUrl)
+    public static async Task RestoreCashuWallet(
+        this PlaywrightTester s,
+        string storeId,
+        string mnemonic,
+        string mintUrl
+    )
     {
         await s.GoToUrl($"/stores/{storeId}/cashu/getting-started");
         await s.Page.ClickAsync("#ImportWalletOptionsLink");
@@ -112,8 +122,12 @@ public static class PlaywrightTesterCashuUtils
         await s.FindAlertMessage(StatusMessageModel.StatusSeverity.Success);
     }
 
-    public static async Task EnableCashuPayments(this PlaywrightTester s, string storeId,
-        string paymentMode = "TrustedMintsOnly", string? trustedMintUrl = null)
+    public static async Task EnableCashuPayments(
+        this PlaywrightTester s,
+        string storeId,
+        string paymentMode = "TrustedMintsOnly",
+        string? trustedMintUrl = null
+    )
     {
         trustedMintUrl ??= GetCdkMintUrl();
 
@@ -132,7 +146,7 @@ public static class PlaywrightTesterCashuUtils
         {
             "AutoConvert" => "autoConvert",
             "HoldWhenTrusted" => "holdWhenTrusted",
-            _ => "trustedMintsOnly"
+            _ => "trustedMintsOnly",
         };
         await s.Page.Locator($"label[for='{modeId}']").ClickAsync();
 
@@ -149,7 +163,11 @@ public static class PlaywrightTesterCashuUtils
 
     // ── Lightning setup ──────────────────────────────────────────────────────
 
-    public static async Task SetupCashuAsLightningNode(this PlaywrightTester s, string storeId, string mintUrl)
+    public static async Task SetupCashuAsLightningNode(
+        this PlaywrightTester s,
+        string storeId,
+        string mintUrl
+    )
     {
         // Generate secret
         await s.GoToUrl($"/stores/{storeId}/cashu/settings");
@@ -200,7 +218,11 @@ public static class PlaywrightTesterCashuUtils
 
     // ── Checkout / payment ───────────────────────────────────────────────────
 
-    public static async Task PayWithTokenViaCheckout(this PlaywrightTester s, string invoiceId, string token)
+    public static async Task PayWithTokenViaCheckout(
+        this PlaywrightTester s,
+        string invoiceId,
+        string token
+    )
     {
         await s.GoToInvoiceCheckout(invoiceId);
         await s.Page.AssertNoError();
@@ -214,7 +236,8 @@ public static class PlaywrightTesterCashuUtils
 
         var responseTask = s.Page.WaitForResponseAsync(
             r => r.Url.Contains("cashu/pay-invoice"),
-            new() { Timeout = 30_000 });
+            new() { Timeout = 30_000 }
+        );
         await s.Page.Locator("#payButton").ClickAsync();
         var response = await responseTask;
 
@@ -224,9 +247,7 @@ public static class PlaywrightTesterCashuUtils
             Xunit.Assert.Fail($"Payment request failed with status {response.Status}: {body}");
         }
 
-        await s.Page.WaitForURLAsync(
-            new Regex($"/i/{invoiceId}"),
-            new() { Timeout = 30_000 });
+        await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
     }
 
     // ── Minting tokens ──────────────────────────────────────────────────────
@@ -235,8 +256,11 @@ public static class PlaywrightTesterCashuUtils
     /// Mints Cashu tokens by paying a Lightning invoice through customer LND.
     /// Returns the encoded cashuB token string.
     /// </summary>
-    public static async Task<string> MintCashuTokenAsync(ulong amountSat,
-        string? mintUrl = null, string? customerLndUrl = null)
+    public static async Task<string> MintCashuTokenAsync(
+        ulong amountSat,
+        string? mintUrl = null,
+        string? customerLndUrl = null
+    )
     {
         mintUrl ??= GetCdkMintUrl();
         customerLndUrl ??= GetCustomerLndUrl();
@@ -252,10 +276,13 @@ public static class PlaywrightTesterCashuUtils
         var quote = mintHandler.GetQuote();
 
         using var http = new HttpClient();
-        var payBody = System.Text.Json.JsonSerializer.Serialize(new { payment_request = quote.Request });
+        var payBody = System.Text.Json.JsonSerializer.Serialize(
+            new { payment_request = quote.Request }
+        );
         var payResp = await http.PostAsync(
             $"{customerLndUrl}/v1/channels/transactions",
-            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json"));
+            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json")
+        );
         payResp.EnsureSuccessStatusCode();
 
         await Task.Delay(2000);
@@ -265,7 +292,7 @@ public static class PlaywrightTesterCashuUtils
         var cashuToken = new CashuToken
         {
             Tokens = [new CashuToken.Token(mintUrl, proofs)],
-            Unit = "sat"
+            Unit = "sat",
         };
         return cashuToken.Encode();
     }
@@ -274,16 +301,17 @@ public static class PlaywrightTesterCashuUtils
     /// Mints tokens using a deterministic wallet (mnemonic + counter),
     /// so restore can find them later.
     /// </summary>
-    public static async Task<long> MintWithMnemonicAsync(string mnemonic, ulong amountSat,
-        string mintUrl, string? customerLndUrl = null)
+    public static async Task<long> MintWithMnemonicAsync(
+        string mnemonic,
+        ulong amountSat,
+        string mintUrl,
+        string? customerLndUrl = null
+    )
     {
         customerLndUrl ??= GetCustomerLndUrl();
 
         var counter = new InMemoryCounter();
-        var wallet = Wallet.Create()
-            .WithMint(mintUrl)
-            .WithMnemonic(mnemonic)
-            .WithCounter(counter);
+        var wallet = Wallet.Create().WithMint(mintUrl).WithMnemonic(mnemonic).WithCounter(counter);
 
         var mintHandler = await wallet
             .CreateMintQuote()
@@ -294,10 +322,13 @@ public static class PlaywrightTesterCashuUtils
         var quote = mintHandler.GetQuote();
 
         using var http = new HttpClient();
-        var payBody = System.Text.Json.JsonSerializer.Serialize(new { payment_request = quote.Request });
+        var payBody = System.Text.Json.JsonSerializer.Serialize(
+            new { payment_request = quote.Request }
+        );
         var payResp = await http.PostAsync(
             $"{customerLndUrl}/v1/channels/transactions",
-            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json"));
+            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json")
+        );
         payResp.EnsureSuccessStatusCode();
 
         await Task.Delay(1000);
@@ -317,7 +348,8 @@ public static class PlaywrightTesterCashuUtils
         }
         await page.Locator("textarea[name='MintUrls']").FillAsync(mintUrl);
         await page.WaitForFunctionAsync(
-            "!document.getElementById('proceed').hasAttribute('disabled')");
+            "!document.getElementById('proceed').hasAttribute('disabled')"
+        );
     }
 
     public static async Task WaitForRestoreCompletedAsync(IPage page, int timeoutSec = 60)

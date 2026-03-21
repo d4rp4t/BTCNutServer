@@ -43,7 +43,10 @@ public class CashuLightningSetupTests(ITestOutputHelper helper) : UnitTestBase(h
 
         // Now send connection string should be visible
         var connStringSend = s.Page.Locator("#connStringSend");
-        Assert.True(await connStringSend.IsVisibleAsync(), "Send connection string should appear after generating secret");
+        Assert.True(
+            await connStringSend.IsVisibleAsync(),
+            "Send connection string should appear after generating secret"
+        );
 
         // Receive connection string should always be visible
         var connStringReceive = s.Page.Locator("#connStringReceive");
@@ -124,9 +127,10 @@ public class CashuLightningSetupTests(ITestOutputHelper helper) : UnitTestBase(h
 
         // Lightning tab should show since Cashu is configured as the LN node
         Assert.True(
-            content.Contains("Lightning", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("ln", StringComparison.OrdinalIgnoreCase),
-            "Expected Lightning payment method to appear in checkout");
+            content.Contains("Lightning", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("ln", StringComparison.OrdinalIgnoreCase),
+            "Expected Lightning payment method to appear in checkout"
+        );
     }
 
     [Fact]
@@ -168,7 +172,6 @@ public class CashuLightningSetupTests(ITestOutputHelper helper) : UnitTestBase(h
         Assert.Contains("secret=", rotatedConn!);
     }
 
-
     [Fact]
     public async Task CanSaveFeeSettings()
     {
@@ -206,7 +209,6 @@ public class CashuLightningSetupTests(ITestOutputHelper helper) : UnitTestBase(h
         Assert.Equal("5", maxKeysetFee);
     }
 
-
     [Fact]
     public async Task CanRemoveWallet()
     {
@@ -234,7 +236,8 @@ public class CashuLightningSetupTests(ITestOutputHelper helper) : UnitTestBase(h
 
         // The delete button should now be clickable (JS enables it)
         await s.Page.WaitForFunctionAsync(
-            "document.getElementById('confirmDeleteBtn').style.pointerEvents === 'auto'");
+            "document.getElementById('confirmDeleteBtn').style.pointerEvents === 'auto'"
+        );
         await s.Page.Locator("#confirmDeleteBtn").ClickAsync();
 
         // Should redirect to store dashboard after removal
@@ -245,5 +248,4 @@ public class CashuLightningSetupTests(ITestOutputHelper helper) : UnitTestBase(h
         await s.GoToUrl($"/stores/{storeId}/cashu/wallet");
         Assert.Contains("getting-started", s.Page.Url);
     }
-
 }

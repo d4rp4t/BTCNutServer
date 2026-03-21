@@ -17,7 +17,11 @@ public class MintFixture : IAsyncLifetime
         await WaitForMintAsync(NutshellMintUrl, "Nutshell");
     }
 
-    private static async Task WaitForMintAsync(string mintUrl, string name, int timeoutSeconds = 120)
+    private static async Task WaitForMintAsync(
+        string mintUrl,
+        string name,
+        int timeoutSeconds = 120
+    )
     {
         var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         while (DateTime.UtcNow < deadline)

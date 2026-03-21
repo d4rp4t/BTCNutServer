@@ -43,12 +43,11 @@ public class MintInfoTests(MintFixture fixture)
     {
         var url = mintType == "cdk" ? fixture.CdkMintUrl : fixture.NutshellMintUrl;
         using var client = CashuUtils.GetCashuHttpClient(url);
-        var req = new PostMintQuoteBolt11Request()
-        {
-            Amount = 100UL,
-            Unit = "sat",
-        };
-        var quote = await client.CreateMintQuote<PostMintQuoteBolt11Response, PostMintQuoteBolt11Request>("bolt11", req);
+        var req = new PostMintQuoteBolt11Request() { Amount = 100UL, Unit = "sat" };
+        var quote = await client.CreateMintQuote<
+            PostMintQuoteBolt11Response,
+            PostMintQuoteBolt11Request
+        >("bolt11", req);
 
         Assert.NotNull(quote);
         Assert.NotEmpty(quote.Quote);

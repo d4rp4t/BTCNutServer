@@ -13,14 +13,16 @@ public class StoredProofTests
     private static Proof MakeProof(
         ulong amount = 64,
         string? secret = null,
-        string? witness = null) => new()
-    {
-        Amount = amount,
-        Id = new KeysetId("000000000000001a"),
-        Secret = new StringSecret(secret ?? Guid.NewGuid().ToString()),
-        C = new PubKey(ValidPubKeyHex),
-        Witness = witness,
-    };
+        string? witness = null
+    ) =>
+        new()
+        {
+            Amount = amount,
+            Id = new KeysetId("000000000000001a"),
+            Secret = new StringSecret(secret ?? Guid.NewGuid().ToString()),
+            C = new PubKey(ValidPubKeyHex),
+            Witness = witness,
+        };
 
     [Fact]
     public void Constructor_CopiesAllProofFields()
@@ -98,16 +100,10 @@ public class StoredProofTests
         Assert.IsNotType<StoredProof>(result);
     }
 
-
     [Fact]
     public void FromBatch_ReturnsAllProofsAsStoredProofs()
     {
-        var proofs = new List<Proof>
-        {
-            MakeProof(8),
-            MakeProof(16),
-            MakeProof(32),
-        };
+        var proofs = new List<Proof> { MakeProof(8), MakeProof(16), MakeProof(32) };
 
         var result = StoredProof.FromBatch(proofs, "store", ProofState.Available).ToList();
 
@@ -122,7 +118,9 @@ public class StoredProofTests
         var paymentId = Guid.NewGuid();
         var proofs = new List<Proof> { MakeProof(), MakeProof(128) };
 
-        var result = StoredProof.FromBatch(proofs, "store", ProofState.Reserved, paymentId).ToList();
+        var result = StoredProof
+            .FromBatch(proofs, "store", ProofState.Reserved, paymentId)
+            .ToList();
 
         Assert.All(result, sp => Assert.Equal(paymentId, sp.CashuLightningClientPaymentId));
     }
@@ -148,12 +146,7 @@ public class StoredProofTests
     [Fact]
     public void FromBatch_PreservesAmountsAndIds()
     {
-        var proofs = new List<Proof>
-        {
-            MakeProof(8),
-            MakeProof(),
-            MakeProof(512),
-        };
+        var proofs = new List<Proof> { MakeProof(8), MakeProof(), MakeProof(512) };
 
         var result = StoredProof.FromBatch(proofs, "store", ProofState.Spent).ToList();
 

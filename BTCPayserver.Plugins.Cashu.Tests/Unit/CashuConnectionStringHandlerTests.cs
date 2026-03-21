@@ -34,7 +34,10 @@ public class CashuConnectionStringHandlerTests
         var handler = CreateHandler();
 
         var client = handler.Create(
-            "type=cashu;mint-url=https://mint.test/", Network.RegTest, out var error);
+            "type=cashu;mint-url=https://mint.test/",
+            Network.RegTest,
+            out var error
+        );
 
         Assert.Null(client);
         Assert.NotNull(error);
@@ -47,7 +50,10 @@ public class CashuConnectionStringHandlerTests
         var handler = CreateHandler();
 
         var client = handler.Create(
-            "type=cashu;mint-url=http://mint.test/;store-id=store1", Network.RegTest, out var error);
+            "type=cashu;mint-url=http://mint.test/;store-id=store1",
+            Network.RegTest,
+            out var error
+        );
 
         Assert.Null(client);
         Assert.NotNull(error);
@@ -61,7 +67,9 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             "type=cashu;mint-url=http://mint.test/;store-id=store1;allowinsecure=true",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.NotNull(client);
         Assert.Null(error);
@@ -74,7 +82,9 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             "type=cashu;mint-url=http://mint.test/;store-id=store1;allowinsecure=false",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.Null(client);
         Assert.NotNull(error);
@@ -87,13 +97,14 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             "type=cashu;mint-url=https://mint.test/;store-id=store1;allowinsecure=maybe",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.Null(client);
         Assert.NotNull(error);
         Assert.Contains("allowinsecure", error, StringComparison.OrdinalIgnoreCase);
     }
-    
 
     [Fact]
     public void Create_ValidHttps_ReturnsClientAndNoError()
@@ -102,7 +113,9 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             "type=cashu;mint-url=https://mint.test/;store-id=store1",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.NotNull(client);
         Assert.Null(error);
@@ -117,7 +130,9 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             $"type=cashu;mint-url=https://mint.test/;store-id=store1;secret={secret}",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.NotNull(client);
         Assert.Null(error);
@@ -131,7 +146,9 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             "type=cashu;mint-url=https://mint.test/;store-id=store1",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.NotNull(client);
         Assert.Null(error);
@@ -145,7 +162,9 @@ public class CashuConnectionStringHandlerTests
 
         var client = handler.Create(
             "type=cashu;mint-url=http://mint.test/;store-id=store1;allowinsecure=TRUE",
-            Network.RegTest, out var error);
+            Network.RegTest,
+            out var error
+        );
 
         Assert.NotNull(client);
         Assert.Null(error);
@@ -157,9 +176,12 @@ public class CashuConnectionStringHandlerTests
         var handler = CreateHandler();
         var secret = Guid.NewGuid().ToString();
 
-        var client = (CashuLightningClient)handler.Create(
-            $"type=cashu;mint-url=https://mint.test/;store-id=mystore;secret={secret}",
-            Network.RegTest, out _)!;
+        var client = (CashuLightningClient)
+            handler.Create(
+                $"type=cashu;mint-url=https://mint.test/;store-id=mystore;secret={secret}",
+                Network.RegTest,
+                out _
+            )!;
 
         var str = client.ToString();
         Assert.Contains("type=cashu", str);
@@ -173,9 +195,12 @@ public class CashuConnectionStringHandlerTests
     {
         var handler = CreateHandler();
 
-        var client = (CashuLightningClient)handler.Create(
-            "type=cashu;mint-url=https://mint.test/;store-id=mystore",
-            Network.RegTest, out _)!;
+        var client = (CashuLightningClient)
+            handler.Create(
+                "type=cashu;mint-url=https://mint.test/;store-id=mystore",
+                Network.RegTest,
+                out _
+            )!;
 
         var str = client.ToString();
         Assert.Contains("type=cashu", str);

@@ -9,45 +9,49 @@ public class LightningModelTests
 {
     private static CashuLightningClientInvoice MakeInvoice(
         string quoteState = "UNPAID",
-        DateTimeOffset? expiry = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        StoreId = "store",
-        Mint = "https://mint.test",
-        QuoteId = "quote1",
-        InvoiceId = "inv1",
-        KeysetId = new KeysetId("000000000000001a"),
-        OutputData = [],
-        QuoteState = quoteState,
-        Amount = LightMoney.Satoshis(1000),
-        Bolt11 = "lnbc1...",
-        Created = DateTimeOffset.UtcNow,
-        Expiry = expiry ?? DateTimeOffset.UtcNow.AddHours(1),
-    };
+        DateTimeOffset? expiry = null
+    ) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            StoreId = "store",
+            Mint = "https://mint.test",
+            QuoteId = "quote1",
+            InvoiceId = "inv1",
+            KeysetId = new KeysetId("000000000000001a"),
+            OutputData = [],
+            QuoteState = quoteState,
+            Amount = LightMoney.Satoshis(1000),
+            Bolt11 = "lnbc1...",
+            Created = DateTimeOffset.UtcNow,
+            Expiry = expiry ?? DateTimeOffset.UtcNow.AddHours(1),
+        };
 
     private static CashuLightningClientPayment MakePayment(
         string quoteState = "PAID",
-        LightMoney? feeAmount = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        StoreId = "store",
-        Mint = "https://mint.test",
-        QuoteId = "quote2",
-        QuoteState = quoteState,
-        PaymentHash = "abc123",
-        Bolt11 = "lnbc1...",
-        Preimage = "preimage123",
-        Amount = LightMoney.Satoshis(500),
-        FeeAmount = feeAmount,
-        CreatedAt = DateTimeOffset.UtcNow,
-    };
+        LightMoney? feeAmount = null
+    ) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            StoreId = "store",
+            Mint = "https://mint.test",
+            QuoteId = "quote2",
+            QuoteState = quoteState,
+            PaymentHash = "abc123",
+            Bolt11 = "lnbc1...",
+            Preimage = "preimage123",
+            Amount = LightMoney.Satoshis(500),
+            FeeAmount = feeAmount,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
 
     // ── Invoice.Status (computed property) ────────────────────────────────────
 
     [Theory]
     [InlineData("ISSUED", LightningInvoiceStatus.Paid)]
-    [InlineData("issued", LightningInvoiceStatus.Paid)]   // case-insensitive
-    [InlineData("PAID", LightningInvoiceStatus.Unpaid)]   // PAID = LN received, tokens not yet minted
+    [InlineData("issued", LightningInvoiceStatus.Paid)] // case-insensitive
+    [InlineData("PAID", LightningInvoiceStatus.Unpaid)] // PAID = LN received, tokens not yet minted
     [InlineData("UNPAID", LightningInvoiceStatus.Unpaid)]
     [InlineData("EXPIRED", LightningInvoiceStatus.Expired)]
     [InlineData("expired", LightningInvoiceStatus.Expired)]
@@ -113,7 +117,10 @@ public class LightningModelTests
     [InlineData("EXPIRED", LightningPaymentStatus.Unknown)]
     [InlineData("BOGUS", LightningPaymentStatus.Unknown)]
     [InlineData(null, LightningPaymentStatus.Unknown)]
-    public void Payment_QuoteState_MapsToCorrectStatus(string? quoteState, LightningPaymentStatus expected)
+    public void Payment_QuoteState_MapsToCorrectStatus(
+        string? quoteState,
+        LightningPaymentStatus expected
+    )
     {
         var p = MakePayment(quoteState!);
         p.QuoteState = quoteState!;

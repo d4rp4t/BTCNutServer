@@ -14,7 +14,10 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 {
     // Use a fresh random mnemonic per test run to avoid "outputs already signed" errors
     // when mint containers retain state between runs (deterministic outputs collide on reuse).
-    private readonly string TestMnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
+    private readonly string TestMnemonic = new Mnemonic(
+        Wordlist.English,
+        WordCount.Twelve
+    ).ToString();
 
     private string CdkMintUrl => PlaywrightTesterCashuUtils.GetCdkMintUrl();
     private string NutshellMintUrl => PlaywrightTesterCashuUtils.GetNutshellMintUrl();
@@ -91,9 +94,13 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         // Verify token round-trips correctly before sending
         helper.WriteLine($"Token: {token}");
-        Assert.True(CashuUtils.TryDecodeToken(token, out var decoded),
-            $"Token failed local decode round-trip: {token}");
-        helper.WriteLine($"Decoded token has {decoded!.Tokens.SelectMany(t => t.Proofs).Count()} proofs");
+        Assert.True(
+            CashuUtils.TryDecodeToken(token, out var decoded),
+            $"Token failed local decode round-trip: {token}"
+        );
+        helper.WriteLine(
+            $"Decoded token has {decoded!.Tokens.SelectMany(t => t.Proofs).Count()} proofs"
+        );
 
         // Go to checkout and pay with token
         await s.GoToInvoiceCheckout(invoiceId);
@@ -111,7 +118,8 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         // Click the Pay button and verify response
         var responseTask = s.Page.WaitForResponseAsync(
             r => r.Url.Contains("cashu/pay-invoice"),
-            new() { Timeout = 30_000 });
+            new() { Timeout = 30_000 }
+        );
         await s.Page.Locator("#payButton").ClickAsync();
         var response = await responseTask;
 
@@ -122,16 +130,14 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         }
 
         // Wait for redirect back to invoice after payment
-        await s.Page.WaitForURLAsync(
-            new Regex($"/i/{invoiceId}"),
-            new() { Timeout = 30_000 });
+        await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
 
         var content = await s.Page.ContentAsync();
         Assert.True(
-            content.Contains("Paid", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("settled", StringComparison.OrdinalIgnoreCase),
-            "Expected invoice to be settled after Cashu payment");
-
+            content.Contains("Paid", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("settled", StringComparison.OrdinalIgnoreCase),
+            "Expected invoice to be settled after Cashu payment"
+        );
     }
 
     [Fact]
@@ -157,16 +163,20 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         // Submit via HTTP — expect rejection
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
         var payUrl = s.ServerUri.AbsoluteUri.TrimEnd('/') + "/cashu/pay-invoice";
-        var payResp = await http.PostAsync(payUrl, new FormUrlEncodedContent(
-        [
-            new KeyValuePair<string, string>("token", token),
-            new KeyValuePair<string, string>("invoiceId", invoiceId),
-        ]));
+        var payResp = await http.PostAsync(
+            payUrl,
+            new FormUrlEncodedContent([
+                new KeyValuePair<string, string>("token", token),
+                new KeyValuePair<string, string>("invoiceId", invoiceId),
+            ])
+        );
         var payBody = await payResp.Content.ReadAsStringAsync();
 
         helper.WriteLine($"RejectsUntrusted: status={payResp.StatusCode}, body={payBody}");
-        Assert.True((int)payResp.StatusCode >= 400,
-            $"Expected error response for untrusted mint, got {payResp.StatusCode}: {payBody}");
+        Assert.True(
+            (int)payResp.StatusCode >= 400,
+            $"Expected error response for untrusted mint, got {payResp.StatusCode}: {payBody}"
+        );
     }
 
     [Fact]
@@ -213,7 +223,10 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         // Pay from untrusted mint — should melt (convert to LN)
         var invoiceId2 = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
-        var untrustedToken = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200, NutshellMintUrl);
+        var untrustedToken = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(
+            200,
+            NutshellMintUrl
+        );
         await s.PayWithTokenViaCheckout(invoiceId2, untrustedToken);
     }
 
@@ -245,10 +258,13 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var quote = mintHandler.GetQuote();
 
         using var http = new HttpClient();
-        var payBody = System.Text.Json.JsonSerializer.Serialize(new { payment_request = quote.Request });
+        var payBody = System.Text.Json.JsonSerializer.Serialize(
+            new { payment_request = quote.Request }
+        );
         var payResp = await http.PostAsync(
             $"{CustomerLndUrl}/v1/channels/transactions",
-            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json"));
+            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json")
+        );
         payResp.EnsureSuccessStatusCode();
         await Task.Delay(2000);
 
@@ -260,20 +276,24 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             id = invoiceId,
             mint = mintUrl,
             unit = "sat",
-            proofs = proofs
+            proofs = proofs,
         };
 
         var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
         helper.WriteLine($"NUT-19 payload: {payloadJson[..Math.Min(200, payloadJson.Length)]}...");
 
         var prUrl = s.ServerUri.AbsoluteUri.TrimEnd('/') + "/cashu/pay-invoice-pr";
-        var prResp = await http.PostAsync(prUrl,
-            new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json"));
+        var prResp = await http.PostAsync(
+            prUrl,
+            new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json")
+        );
 
         var prBody = await prResp.Content.ReadAsStringAsync();
         helper.WriteLine($"NUT-19 response: {prResp.StatusCode}, body: {prBody}");
 
-        Assert.True(prResp.IsSuccessStatusCode,
-            $"NUT-19 payment failed: {prResp.StatusCode} — {prBody}");
+        Assert.True(
+            prResp.IsSuccessStatusCode,
+            $"NUT-19 payment failed: {prResp.StatusCode} — {prBody}"
+        );
     }
 }
