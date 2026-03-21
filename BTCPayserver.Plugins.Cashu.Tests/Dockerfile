@@ -43,10 +43,7 @@ RUN PLUGIN_DIR=/root/.btcpayserver/Plugins/BTCPayServer.Plugins.Cashu && \
     cp /source/Plugin/BTCPayServer.Plugins.Cashu/bin/${CONFIGURATION_NAME}/net*/BTCPayServer.Plugins.Cashu.dll \
        "$PLUGIN_DIR/BTCPayServer.Plugins.Cashu.dll"
 
-RUN dotnet tool install --global Microsoft.Playwright.CLI
-ENV PATH="$PATH:/root/.dotnet/tools"
-
 WORKDIR /source/BTCPayserver.Plugins.Cashu.Tests
-RUN playwright install chromium --with-deps
+RUN dotnet exec --runtimeconfig bin/${CONFIGURATION_NAME}/net8.0/BTCPayserver.Plugins.Cashu.Tests.runtimeconfig.json --depsfile bin/${CONFIGURATION_NAME}/net8.0/BTCPayserver.Plugins.Cashu.Tests.deps.json bin/${CONFIGURATION_NAME}/net8.0/Microsoft.Playwright.dll install chromium --with-deps
 ENV CONFIGURATION_NAME=${CONFIGURATION_NAME}
 ENTRYPOINT ["./docker-entrypoint.sh"]
