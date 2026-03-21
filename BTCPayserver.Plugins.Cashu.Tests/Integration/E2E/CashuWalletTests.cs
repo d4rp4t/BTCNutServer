@@ -15,8 +15,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
     private string CdkMintUrl => PlaywrightTesterCashuUtils.GetCdkMintUrl();
 
-    // ── Basic page loads ────────────────────────────────────────────────────
-
     [Fact]
     public async Task CashuWalletPageLoads()
     {
@@ -49,8 +47,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
     }
 
-    // ── Empty state ─────────────────────────────────────────────────────────
-
     [Fact]
     public async Task WalletShowsEmptyStateWhenNoFunds()
     {
@@ -69,7 +65,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         Assert.Contains("No funds available", content);
     }
 
-    // ── Balance after payment ───────────────────────────────────────────────
 
     [Fact]
     public async Task WalletShowsBalanceAfterReceivingPayment()
@@ -102,7 +97,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
             $"Expected positive balance, got: {amountText}");
     }
 
-    // ── Export token ────────────────────────────────────────────────────────
 
     [Fact]
     public async Task CanExportTokenFromWallet()
@@ -154,10 +148,9 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         // Mint URL should be displayed
         var mintUrl = await s.Page.Locator(".mint-url").TextContentAsync();
         Assert.NotNull(mintUrl);
-        Assert.Contains("localhost", mintUrl);
+        Assert.Contains(new Uri(CdkMintUrl).Host, mintUrl);
     }
 
-    // ── Token export history ────────────────────────────────────────────────
 
     [Fact]
     public async Task TokenExportHistoryShowsExportedTokens()
@@ -201,7 +194,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         Assert.True(await s.Page.Locator("#qrcode").IsVisibleAsync());
     }
 
-    // ── Check token states ──────────────────────────────────────────────────
 
     [Fact]
     public async Task CanCheckTokenStates()
@@ -237,7 +229,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
     }
 
-    // ── Remove spent proofs ───────────────────────────────────────────────
 
     [Fact]
     public async Task CanRemoveSpentProofs()
@@ -277,7 +268,6 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
             "Expected a status message about spent proof removal");
     }
 
-    // ── Mint info API ───────────────────────────────────────────────────────
 
     [Fact]
     public async Task MintInfoApiReturnsValidData()

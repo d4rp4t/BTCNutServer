@@ -1,7 +1,5 @@
 using System.Text.RegularExpressions;
-using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Tests;
-using NBitcoin;
 using Xunit;
 using Xunit.Abstractions;
 

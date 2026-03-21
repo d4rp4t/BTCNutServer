@@ -28,7 +28,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
 
     private const string StoreId = "integration-test-store";
 
-    // ── CreateInvoice ────────────────────────────────────────────────────────
 
     [Fact]
     public async Task CreateInvoice_ReturnsValidBolt11()
@@ -47,8 +46,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         Assert.Equal(LightMoney.Satoshis(100), invoice.Amount);
         Assert.Equal(LightningInvoiceStatus.Unpaid, invoice.Status);
     }
-
-    // ── CreateInvoice + Pay + Listen ─────────────────────────────────────────
 
     [Fact]
     public async Task CreateInvoice_PayViaBolt11_ListenerNotifies()
@@ -74,8 +71,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         Assert.Equal(LightningInvoiceStatus.Paid, paid.Status);
     }
 
-    // ── GetInvoice ───────────────────────────────────────────────────────────
-
     [Fact]
     public async Task GetInvoice_AfterCreate_ReturnsInvoice()
     {
@@ -90,8 +85,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         Assert.Equal(created.Id, fetched.Id);
         Assert.Equal(created.Amount, fetched.Amount);
     }
-
-    // ── GetBalance ───────────────────────────────────────────────────────────
 
     [Fact]
     public async Task GetBalance_AfterMintAndListen_ReturnsPositiveBalance()
@@ -115,8 +108,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         Assert.True(balance.OffchainBalance.Local > LightMoney.Zero,
             "Expected positive balance after minting");
     }
-
-    // ── Pay ──────────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Pay_WithSufficientBalance_Succeeds()
@@ -149,8 +140,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         Assert.Equal(PayResult.Ok, payResponse.Result);
     }
 
-    // ── ListInvoices / ListPayments ──────────────────────────────────────────
-
     [Fact]
     public async Task ListInvoices_ReturnsCreatedInvoices()
     {
@@ -164,8 +153,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
 
         Assert.True(invoices.Length >= 2);
     }
-
-    // ── Receive-only vs Send+Receive ────────────────────────────────────────
 
     [Fact]
     public async Task ReceiveOnly_CreateInvoiceSucceeds_PayFails()
@@ -216,8 +203,6 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         helper.WriteLine($"Pay result: {payResponse.Result}");
         Assert.Equal(PayResult.Ok, payResponse.Result);
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<(CashuLightningClient client, MintListener listener)> SetupClient(
         bool includeSecret = true)

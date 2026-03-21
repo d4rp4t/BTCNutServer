@@ -1,8 +1,5 @@
 using System.Text.RegularExpressions;
 using BTCPayServer.Tests;
-using DotNut;
-using DotNut.Abstractions;
-using Microsoft.Playwright;
 using NBitcoin;
 using Xunit;
 using Xunit.Abstractions;

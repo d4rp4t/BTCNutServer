@@ -20,8 +20,6 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
     private string NutshellMintUrl => PlaywrightTesterCashuUtils.GetNutshellMintUrl();
     private string CustomerLndUrl => PlaywrightTesterCashuUtils.GetCustomerLndUrl();
 
-    // ── Store config ──────────────────────────────────────────────────────────
-
     [Fact]
     public async Task CanEnableCashuPaymentMethod()
     {
@@ -70,8 +68,6 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var content = await s.Page.ContentAsync();
         Assert.Contains("cashu", content, StringComparison.OrdinalIgnoreCase);
     }
-
-    // ── Full mint → pay flow (requires channel setup) ────────────────────────
 
     [Fact]
     public async Task CanPayInTrustedMintsOnlyMode()
@@ -220,8 +216,6 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var untrustedToken = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200, NutshellMintUrl);
         await s.PayWithTokenViaCheckout(invoiceId2, untrustedToken);
     }
-
-    // ── NUT-19 Payment Request ─────────────────────────────────────────────
 
     [Fact]
     public async Task CanPayViaNut19PaymentRequest()

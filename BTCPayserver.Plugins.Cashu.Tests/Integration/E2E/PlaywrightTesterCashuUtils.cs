@@ -3,7 +3,6 @@ using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Tests;
 using DotNut;
 using DotNut.Abstractions;
-using DotNut.NBitcoin.BIP39;
 using Microsoft.Playwright;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
