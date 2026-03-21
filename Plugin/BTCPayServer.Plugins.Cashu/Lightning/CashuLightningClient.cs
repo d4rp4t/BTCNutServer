@@ -321,6 +321,7 @@ public class CashuLightningClient(
 
         var keysets = await wallet.GetKeysets(false, cancellation);
         var keysetIds = keysets.Select(k => k.Id).ToHashSet();
+        var keysetFees = keysets.ToDictionary(k => k.Id, k => k.InputFee ?? 0UL);
         var dbProofs = db.Proofs
             .Where(p => p.StoreId == storeId && p.Status == ProofState.Available)
             .ToList()
@@ -331,10 +332,23 @@ public class CashuLightningClient(
             .Zip(dotNutProofs, (dbProof, proof) => (dbProof, proof))
             .ToDictionary(x => x.proof, x => x.dbProof);
 
-        var targetAmount = quote.Amount + (ulong)quote.FeeReserve;
+        var baseTarget = quote.Amount + (ulong)quote.FeeReserve;
+        // First pass: select proofs accounting for fees
         var sendResponse = await wallet.SelectProofsToSend(
-            dotNutProofs, targetAmount, true, cancellation);
+            dotNutProofs, baseTarget, true, cancellation);
+        // Add the actual input fee to the target so the mint's fee check passes
+        var inputFee = sendResponse.Send.ComputeFee(keysetFees);
+        var targetAmount = baseTarget + inputFee;
+        // Re-select if the first pass doesn't cover the full target + input fees
         var selectedTotal = sendResponse.Send.Aggregate(0UL, (acc, p) => acc + p.Amount);
+        if (selectedTotal < targetAmount)
+        {
+            sendResponse = await wallet.SelectProofsToSend(
+                dotNutProofs, targetAmount, true, cancellation);
+            inputFee = sendResponse.Send.ComputeFee(keysetFees);
+            targetAmount = baseTarget + inputFee;
+            selectedTotal = sendResponse.Send.Aggregate(0UL, (acc, p) => acc + p.Amount);
+        }
 
         foreach (var proof in sendResponse.Send)
         {
@@ -348,7 +362,6 @@ public class CashuLightningClient(
         if (selectedTotal > targetAmount)
         {
             var denominationLoss = selectedTotal - targetAmount;
-            var keysetFees = keysets.ToDictionary(k => k.Id, k => k.InputFee ?? 0UL);
             var swapFeeEstimate = sendResponse.Send.ComputeFee(keysetFees);
 
             if (denominationLoss > swapFeeEstimate)
@@ -357,7 +370,7 @@ public class CashuLightningClient(
                     .FromInputs(sendResponse.Send)
                     .ProcessAsync(cancellation);
 
-                var split = await wallet.SelectProofsToSend(swapped, targetAmount, false, cancellation);
+                var split = await wallet.SelectProofsToSend(swapped, targetAmount, true, cancellation);
 
                 foreach (var proof in sendResponse.Send)
                     proofMap[proof].Status = ProofState.Spent;
