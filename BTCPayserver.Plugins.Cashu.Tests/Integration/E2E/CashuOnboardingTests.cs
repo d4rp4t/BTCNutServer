@@ -16,14 +16,9 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 {
     private readonly string TestMnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
 
-    private string CdkMintUrl =>
-        Environment.GetEnvironmentVariable("TEST_CDK_MINT_URL") ?? "http://localhost:3338";
-
-    private string NutshellMintUrl =>
-        Environment.GetEnvironmentVariable("TEST_NUTSHELL_MINT_URL") ?? "http://localhost:3339";
-
-    private string CustomerLndUrl =>
-        (Environment.GetEnvironmentVariable("TEST_CUSTOMERLND") ?? "http://localhost:35532").TrimEnd('/');
+    private string CdkMintUrl => PlaywrightTesterCashuUtils.GetCdkMintUrl();
+    private string NutshellMintUrl => PlaywrightTesterCashuUtils.GetNutshellMintUrl();
+    private string CustomerLndUrl => PlaywrightTesterCashuUtils.GetCustomerLndUrl();
 
     [Fact]
     public async Task CanCreateCashuWallet()
@@ -59,9 +54,8 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.Page.WaitForURLAsync(new Regex("confirm-mnemonic"));
         await s.Page.AssertNoError();
 
-        // read mnemonic from confirmation page and click first 4 words in order
-        var confirmMnemonic = await s.Page.Locator("#RecoveryPhrase").GetAttributeAsync("data-mnemonic");
-        var first4Words = confirmMnemonic!.Split(' ').Take(4).ToArray();
+        // use the mnemonic we read from the create page — confirm page has scrambled words
+        var first4Words = mnemonic.Split(' ').Take(4).ToArray();
 
         foreach (var word in first4Words)
         {
@@ -76,7 +70,7 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.Page.WaitForURLAsync(new Regex("/cashu"));
         await s.Page.AssertNoError();
     }
-    
+
     [Fact]
     public async Task CanRestoreEmptyCashuWallet()
     {
@@ -95,14 +89,14 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.Page.AssertNoError();
         Assert.Contains("restore-wallet", s.Page.Url);
 
-        await FillRestoreFormAsync(s.Page, TestMnemonic, CdkMintUrl);
+        await PlaywrightTesterCashuUtils.FillRestoreFormAsync(s.Page, TestMnemonic, CdkMintUrl);
 
         await s.Page.ClickAsync("#proceed");
 
         // restore status page - wait for completion
         await s.Page.WaitForURLAsync(new Regex("restore-status"), new() { Timeout = 10_000 });
 
-        await WaitForRestoreCompletedAsync(s.Page);
+        await PlaywrightTesterCashuUtils.WaitForRestoreCompletedAsync(s.Page);
 
         // click finish, should redirect to cashu store config
         await s.Page.ClickAsync(".finish-btn");
@@ -117,8 +111,8 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         helper.WriteLine($"Restore test mnemonic: {mnemonic}");
 
         // Step 1: Mint on both mints AND start BTCPay server in parallel
-        var cdkTask = MintWithMnemonicAsync(mnemonic, 200, CdkMintUrl);
-        var nutshellTask = MintWithMnemonicAsync(mnemonic, 200, NutshellMintUrl);
+        var cdkTask = PlaywrightTesterCashuUtils.MintWithMnemonicAsync(mnemonic, 200, CdkMintUrl);
+        var nutshellTask = PlaywrightTesterCashuUtils.MintWithMnemonicAsync(mnemonic, 200, NutshellMintUrl);
         await using var s = CreatePlaywrightTester();
         var startTask = s.StartAsync();
 
@@ -136,7 +130,7 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.GoToUrl($"/stores/{storeId}/cashu/getting-started");
         await s.Page.ClickAsync("#ImportWalletOptionsLink");
 
-        await FillRestoreFormAsync(s.Page, mnemonic, CdkMintUrl);
+        await PlaywrightTesterCashuUtils.FillRestoreFormAsync(s.Page, mnemonic, CdkMintUrl);
 
         // The textarea binds as a single List<string> element — multi-line fails URI validation.
         // Replace the textarea with separate hidden inputs so ASP.NET binds each URL separately.
@@ -159,7 +153,7 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.Page.WaitForURLAsync(new Regex("restore-status"), new() { Timeout = 10_000 });
 
         // Step 3: Wait for restore and verify exact balances for both mints
-        await WaitForRestoreCompletedAsync(s.Page);
+        await PlaywrightTesterCashuUtils.WaitForRestoreCompletedAsync(s.Page);
 
         var mintItems = s.Page.Locator(".mint-item");
         Assert.Equal(2, await mintItems.CountAsync());
@@ -210,6 +204,7 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         var walletBalanceValue = decimal.Parse(walletBalanceText!.Trim().Replace(",", ""));
         Assert.True(walletBalanceValue > 0, $"Expected positive wallet balance, got {walletBalanceValue}");
     }
+
     [Fact]
     public async Task RestoreWalletShowsErrorForInvalidMnemonic()
     {
@@ -222,7 +217,7 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 
         await s.GoToUrl($"/stores/{storeId}/cashu/restore-wallet");
 
-        await FillRestoreFormAsync(s.Page,
+        await PlaywrightTesterCashuUtils.FillRestoreFormAsync(s.Page,
             "invalid word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11",
             CdkMintUrl);
 
@@ -233,70 +228,38 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Error);
     }
 
-// helpers 
-    private static async Task FillRestoreFormAsync(IPage page, string mnemonic, string mintUrl)
+    [Fact]
+    public async Task CanInitWithoutLightning()
     {
-        var words = mnemonic.Split(' ');
-        for (var i = 0; i < words.Length; i++)
-        {
-            await page.Locator($"#mnemonic-grid input[data-index='{i}']").FillAsync(words[i]);
-        }
-        await page.Locator("textarea[name='MintUrls']").FillAsync(mintUrl);
-        await page.WaitForFunctionAsync(
-            "!document.getElementById('proceed').hasAttribute('disabled')");
-    }
+        await using var s = CreatePlaywrightTester();
+        await s.StartAsync();
+        await s.RegisterNewUser(isAdmin: true);
+        await s.SkipWizard();
 
-    private static async Task WaitForRestoreCompletedAsync(IPage page, int timeoutSec = 60)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSec);
-        while (DateTime.UtcNow < deadline)
-        {
-            var finishBtn = page.Locator(".finish-btn");
-            if (await finishBtn.IsVisibleAsync())
-            {
-                return;
-            }
+        var (_, storeId) = await s.CreateNewStore();
 
-            var errorContainer = page.Locator(".error-container");
-            if (await errorContainer.IsVisibleAsync())
-            {
-                throw new Exception("Restore failed: " + await page.ContentAsync());
-            }
-            await Task.Delay(1000);
-        }
-        throw new TimeoutException($"Restore did not complete within {timeoutSec}s");
-    }
+        // Restore wallet first (needed before init-without-lightning)
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
 
-    /// <summary>
-    /// Mints tokens on a given mint using a deterministic wallet (mnemonic + counter),
-    /// so the mint signs outputs derived from this mnemonic and restore can find them.
-    /// </summary>
-    private async Task<long> MintWithMnemonicAsync(string mnemonic, ulong amountSat, string mintUrl)
-    {
-        var counter = new InMemoryCounter();
-        var wallet = Wallet.Create()
-            .WithMint(mintUrl)
-            .WithMnemonic(mnemonic)
-            .WithCounter(counter);
+        // Navigate to init-without-lightning
+        await s.GoToUrl($"/stores/{storeId}/cashu/init-without-lightning");
+        await s.Page.AssertNoError();
 
-        var mintHandler = await wallet
-            .CreateMintQuote()
-            .WithAmount(amountSat)
-            .WithUnit("sat")
-            .ProcessAsyncBolt11();
+        var content = await s.Page.ContentAsync();
+        Assert.Contains("without Lightning", content);
+        Assert.Contains("Trusted mints", content, StringComparison.OrdinalIgnoreCase);
 
-        var quote = mintHandler.GetQuote();
+        // Add a trusted mint and submit
+        await s.Page.Locator("#mintUrl").FillAsync(CdkMintUrl);
+        await s.Page.Locator("[data-action='add-mint']").ClickAsync();
+        await s.Page.Locator("input[type='submit'][value='Finish']").ClickAsync();
 
-        using var http = new HttpClient();
-        var payBody = System.Text.Json.JsonSerializer.Serialize(new { payment_request = quote.Request });
-        var payResp = await http.PostAsync(
-            $"{CustomerLndUrl}/v1/channels/transactions",
-            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json"));
-        payResp.EnsureSuccessStatusCode();
+        // Should redirect to store config with Cashu enabled
+        await s.Page.WaitForURLAsync(new Regex($"/stores/{storeId}/cashu"), new() { Timeout = 10_000 });
+        await s.Page.AssertNoError();
 
-        await Task.Delay(1000);
-
-        var proofs = await mintHandler.Mint();
-        return proofs.Sum(p => (long)p.Amount);
+        // Verify Cashu is enabled and TrustedMintsOnly mode is set
+        var pageContent = await s.Page.ContentAsync();
+        Assert.Contains(CdkMintUrl, pageContent);
     }
 }

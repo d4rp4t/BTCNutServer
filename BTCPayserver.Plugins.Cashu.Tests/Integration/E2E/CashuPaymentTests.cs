@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Tests;
-using DotNut;
 using NBitcoin;
 using Xunit;
 using Xunit.Abstractions;
@@ -17,14 +16,9 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
     // when mint containers retain state between runs (deterministic outputs collide on reuse).
     private readonly string TestMnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve).ToString();
 
-    private string CdkMintUrl =>
-        Environment.GetEnvironmentVariable("TEST_CDK_MINT_URL") ?? "http://localhost:3338";
-
-    private string CustomerLndUrl =>
-        (Environment.GetEnvironmentVariable("TEST_CUSTOMERLND") ?? "http://localhost:35532").TrimEnd('/');
-
-    private string NutshellMintUrl =>
-        Environment.GetEnvironmentVariable("TEST_NUTSHELL_MINT_URL") ?? "http://localhost:3339";
+    private string CdkMintUrl => PlaywrightTesterCashuUtils.GetCdkMintUrl();
+    private string NutshellMintUrl => PlaywrightTesterCashuUtils.GetNutshellMintUrl();
+    private string CustomerLndUrl => PlaywrightTesterCashuUtils.GetCustomerLndUrl();
 
     // ── Store config ──────────────────────────────────────────────────────────
 
@@ -37,8 +31,8 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.SkipWizard();
 
         var (_, storeId) = await s.CreateNewStore();
-        await SetupCashuWallet(s, storeId);
-        await EnableCashuPayments(s, storeId);
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
+        await s.EnableCashuPayments(storeId);
 
         // Verify config persisted — revisit page and check state
         await s.GoToUrl($"/stores/{storeId}/cashu");
@@ -61,8 +55,8 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.SkipWizard();
 
         var (_, storeId) = await s.CreateNewStore();
-        await SetupCashuWallet(s, storeId);
-        await EnableCashuPayments(s, storeId);
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
+        await s.EnableCashuPayments(storeId);
 
         // Create an invoice
         var invoiceId = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
@@ -73,7 +67,6 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
 
         // The Cashu payment method should appear in checkout
-        // The checkout renders a payment tab when Cashu PM is enabled
         var content = await s.Page.ContentAsync();
         Assert.Contains("cashu", content, StringComparison.OrdinalIgnoreCase);
     }
@@ -89,15 +82,15 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.SkipWizard();
 
         var (_, storeId) = await s.CreateNewStore();
-        await SetupCashuWallet(s, storeId);
-        await EnableCashuPayments(s, storeId);
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
+        await s.EnableCashuPayments(storeId);
 
         // Create a 1 USD invoice
         var invoiceId = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
         Assert.NotNull(invoiceId);
 
         // Mint 200 sat tokens via CDK mint (customer pays LN invoice → gets tokens)
-        var token = await MintCashuTokenAsync(200);
+        var token = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200);
         Assert.NotNull(token);
 
         // Verify token round-trips correctly before sending
@@ -144,7 +137,7 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             "Expected invoice to be settled after Cashu payment");
 
     }
-    
+
     [Fact]
     public async Task RejectsUntrustedMintsInTrustedMintsOnlyMode()
     {
@@ -154,15 +147,15 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.SkipWizard();
 
         var (_, storeId) = await s.CreateNewStore();
-        await SetupCashuWallet(s, storeId);
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
         // Enable Cashu with CDK mint as trusted — nutshell mint is NOT trusted
-        await EnableCashuPayments(s, storeId);
+        await s.EnableCashuPayments(storeId);
 
         var invoiceId = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
         Assert.NotNull(invoiceId);
 
         // Mint tokens from nutshell (untrusted) mint
-        var token = await MintCashuTokenAsync(200, NutshellMintUrl);
+        var token = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200, NutshellMintUrl);
         Assert.NotNull(token);
 
         // Submit via HTTP — expect rejection
@@ -189,18 +182,18 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.SkipWizard();
 
         var (_, storeId) = await s.CreateNewStore();
-        await SetupCashuWallet(s, storeId);
-        await SetupLightningNode(s);
-        await EnableCashuPayments(s, storeId, "AutoConvert");
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
+        await s.SetupLightningNode();
+        await s.EnableCashuPayments(storeId, "AutoConvert");
 
         var invoiceId = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
         Assert.NotNull(invoiceId);
 
         // Any mint works in AutoConvert — use CDK
-        var token = await MintCashuTokenAsync(200);
+        var token = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200);
         Assert.NotNull(token);
 
-        await PayWithTokenViaCheckout(s, invoiceId, token);
+        await s.PayWithTokenViaCheckout(invoiceId, token);
     }
 
     [Fact]
@@ -212,183 +205,81 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.SkipWizard();
 
         var (_, storeId) = await s.CreateNewStore();
-        await SetupCashuWallet(s, storeId);
-        await SetupLightningNode(s);
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
+        await s.SetupLightningNode();
         // CDK mint is trusted, nutshell is not
-        await EnableCashuPayments(s, storeId, "HoldWhenTrusted");
+        await s.EnableCashuPayments(storeId, "HoldWhenTrusted");
 
         // Pay from trusted mint — should swap (hold as ecash)
         var invoiceId1 = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
-        var trustedToken = await MintCashuTokenAsync(200);
-        await PayWithTokenViaCheckout(s, invoiceId1, trustedToken);
+        var trustedToken = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200);
+        await s.PayWithTokenViaCheckout(invoiceId1, trustedToken);
 
         // Pay from untrusted mint — should melt (convert to LN)
         var invoiceId2 = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
-        var untrustedToken = await MintCashuTokenAsync(200, NutshellMintUrl);
-        await PayWithTokenViaCheckout(s, invoiceId2, untrustedToken);
+        var untrustedToken = await PlaywrightTesterCashuUtils.MintCashuTokenAsync(200, NutshellMintUrl);
+        await s.PayWithTokenViaCheckout(invoiceId2, untrustedToken);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── NUT-19 Payment Request ─────────────────────────────────────────────
 
-    private async Task SetupCashuWallet(PlaywrightTester s, string storeId)
+    [Fact]
+    public async Task CanPayViaNut19PaymentRequest()
     {
-        helper.WriteLine($"Using mnemonic: {TestMnemonic}");
-        await s.GoToUrl($"/stores/{storeId}/cashu/getting-started");
-        await s.Page.ClickAsync("#ImportWalletOptionsLink");
+        await using var s = CreatePlaywrightTester();
+        await s.StartAsync();
+        await s.RegisterNewUser(isAdmin: true);
+        await s.SkipWizard();
 
-        var words = TestMnemonic.Split(' ');
-        for (var i = 0; i < words.Length; i++)
-            await s.Page.Locator($"#mnemonic-grid input[data-index='{i}']").FillAsync(words[i]);
+        var (_, storeId) = await s.CreateNewStore();
+        await s.RestoreCashuWallet(storeId, TestMnemonic, CdkMintUrl);
+        await s.EnableCashuPayments(storeId);
 
-        await s.Page.Locator("textarea[name='MintUrls']").FillAsync(CdkMintUrl);
-        await s.Page.WaitForFunctionAsync("!document.getElementById('proceed').hasAttribute('disabled')");
-        await s.Page.ClickAsync("#proceed");
+        var invoiceId = await s.CreateInvoice(storeId, amount: 1, currency: "USD");
+        Assert.NotNull(invoiceId);
 
-        await s.Page.WaitForURLAsync(new Regex("restore-status"), new() { Timeout = 10_000 });
-
-        var deadline = DateTime.UtcNow.AddSeconds(60);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (await s.Page.Locator(".finish-btn").IsVisibleAsync())
-            {
-                await s.Page.ClickAsync(".finish-btn");
-                return;
-            }
-            await Task.Delay(1000);
-        }
-        throw new TimeoutException("Cashu wallet restore did not complete in time");
-    }
-
-    private async Task EnableCashuPayments(PlaywrightTester s, string storeId,
-        string paymentMode = "TrustedMintsOnly")
-    {
-        // Step 1: Enable Cashu and save — the trusted mints section only renders when Enabled=true
-        await s.GoToUrl($"/stores/{storeId}/cashu");
-        var toggle = s.Page.Locator("input[id='Enabled']");
-        if (!await toggle.IsCheckedAsync())
-            await toggle.ClickAsync();
-        await s.ClickPagePrimary();
-        await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Success);
-
-        // Step 2: Now the page re-renders with mode selector and trusted mints UI
-        await s.GoToUrl($"/stores/{storeId}/cashu");
-
-        // Select payment mode (radio buttons are visually-hidden, click via label)
-        var modeId = paymentMode switch
-        {
-            "AutoConvert" => "autoConvert",
-            "HoldWhenTrusted" => "holdWhenTrusted",
-            _ => "trustedMintsOnly"
-        };
-        await s.Page.Locator($"label[for='{modeId}']").ClickAsync();
-
-        // Add CDK mint as trusted (visible for TrustedMintsOnly and HoldWhenTrusted)
-        if (paymentMode != "AutoConvert")
-        {
-            await s.Page.Locator("#mintUrl").FillAsync(CdkMintUrl);
-            await s.Page.Locator("[data-action='add-mint']").ClickAsync();
-        }
-
-        await s.ClickPagePrimary();
-        await s.FindAlertMessage(BTCPayServer.Abstractions.Models.StatusMessageModel.StatusSeverity.Success);
-    }
-
-    private string MerchantLndUrl =>
-        (Environment.GetEnvironmentVariable("TEST_MERCHANTLND") ?? "http://localhost:35531/").TrimEnd('/');
-
-    private async Task SetupLightningNode(PlaywrightTester s)
-    {
-        var connectionString = $"type=lnd-rest;server={MerchantLndUrl};allowinsecure=true";
-        await s.GoToLightningSettings();
-        await s.Page.ClickAsync("label[for=\"LightningNodeType-Custom\"]");
-        await s.Page.FillAsync("#ConnectionString", connectionString);
-        await s.ClickPagePrimary();
-        await s.FindAlertMessage(partialText: "BTC Lightning node updated.");
-
-        var enabled = await s.Page.WaitForSelectorAsync("#BTCLightningEnabled");
-        if (!await enabled!.IsCheckedAsync())
-        {
-            await enabled.ClickAsync();
-            await s.ClickPagePrimary();
-            await s.FindAlertMessage(partialText: "BTC Lightning settings successfully updated");
-        }
-    }
-
-    private async Task PayWithTokenViaCheckout(PlaywrightTester s, string invoiceId, string token)
-    {
-        await s.GoToInvoiceCheckout(invoiceId);
-        await s.Page.AssertNoError();
-
-        var cashuTab = s.Page.Locator(".payment-method", new() { HasText = "Cashu" });
-        if (await cashuTab.IsVisibleAsync())
-            await cashuTab.ClickAsync();
-
-        await s.Page.WaitForSelectorAsync("input[name='token']", new() { Timeout = 15_000 });
-        await s.Page.FillAsync("input[name='token']", token);
-
-        // Listen for navigation response to detect server errors
-        var responseTask = s.Page.WaitForResponseAsync(
-            r => r.Url.Contains("cashu/pay-invoice"),
-            new() { Timeout = 30_000 });
-        await s.Page.Locator("#payButton").ClickAsync();
-        var response = await responseTask;
-
-        if ((int)response.Status >= 400)
-        {
-            var body = await response.TextAsync();
-            Assert.Fail($"Payment request failed with status {response.Status}: {body}");
-        }
-
-        await s.Page.WaitForURLAsync(
-            new Regex($"/i/{invoiceId}"),
-            new() { Timeout = 30_000 });
-
-        var content = await s.Page.ContentAsync();
-        Assert.True(
-            content.Contains("Paid", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("settled", StringComparison.OrdinalIgnoreCase),
-            "Expected invoice to be settled after Cashu payment");
-    }
-
-    /// <summary>
-    /// Mints Cashu tokens via CDK mint by paying a Lightning invoice through customer_lnd.
-    /// Requires channel-setup to have run (customer_lnd → mint_lnd channel).
-    /// </summary>
-    private async Task<string> MintCashuTokenAsync(ulong amountSat, string? mintUrl = null)
-    {
-        mintUrl ??= CdkMintUrl;
-        // Build a wallet against the mint using DotNut's fluent API
+        // Mint tokens
+        var mintUrl = CdkMintUrl;
         var wallet = DotNut.Abstractions.Wallet.Create().WithMint(mintUrl);
 
-        // Step 1: Create mint quote — wallet builds blinded messages internally
         var mintHandler = await wallet
             .CreateMintQuote()
-            .WithAmount(amountSat)
+            .WithAmount(200)
             .WithUnit("sat")
             .ProcessAsyncBolt11();
 
         var quote = mintHandler.GetQuote();
-        var bolt11 = quote.Request;
 
-        // Step 2: Pay the LN invoice via customer_lnd REST (no macaroons)
         using var http = new HttpClient();
-        var payBody = System.Text.Json.JsonSerializer.Serialize(new { payment_request = bolt11 });
+        var payBody = System.Text.Json.JsonSerializer.Serialize(new { payment_request = quote.Request });
         var payResp = await http.PostAsync(
             $"{CustomerLndUrl}/v1/channels/transactions",
             new StringContent(payBody, System.Text.Encoding.UTF8, "application/json"));
         payResp.EnsureSuccessStatusCode();
-
-        // Allow time for LN payment to propagate
         await Task.Delay(2000);
 
-        // Step 3: Exchange blinded messages for proofs
         var proofs = await mintHandler.Mint();
 
-        // Step 4: Encode as cashuB token string
-        var cashuToken = new CashuToken
+        // Build NUT-19 payment request payload
+        var payload = new
         {
-            Tokens = [new CashuToken.Token(mintUrl, proofs)], Unit="sat"
+            id = invoiceId,
+            mint = mintUrl,
+            unit = "sat",
+            proofs = proofs
         };
-        return cashuToken.Encode();
+
+        var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
+        helper.WriteLine($"NUT-19 payload: {payloadJson[..Math.Min(200, payloadJson.Length)]}...");
+
+        var prUrl = s.ServerUri.AbsoluteUri.TrimEnd('/') + "/cashu/pay-invoice-pr";
+        var prResp = await http.PostAsync(prUrl,
+            new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json"));
+
+        var prBody = await prResp.Content.ReadAsStringAsync();
+        helper.WriteLine($"NUT-19 response: {prResp.StatusCode}, body: {prBody}");
+
+        Assert.True(prResp.IsSuccessStatusCode,
+            $"NUT-19 payment failed: {prResp.StatusCode} — {prBody}");
     }
 }

@@ -134,7 +134,7 @@
         <p class="instruction-text mb-0">Tap the first four words in the order they appeared</p>
         <p class="text-muted small">Click again to deselect</p>
     </div>
-    <ol id="RecoveryPhrase" data-mnemonic="@Model.Mnemonic" class="d-inline-block my-5 mx-auto ps-4">
+    <ol id="RecoveryPhrase" class="d-inline-block my-5 mx-auto ps-4">
         @foreach (var word in Model.Words)
         {
             <li class="text-start text-muted" data-word="@word">
