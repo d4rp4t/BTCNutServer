@@ -249,6 +249,7 @@ public static class PlaywrightTesterCashuUtils
         }
 
         await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
+        await s.Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
     }
 
     // ── Minting tokens ──────────────────────────────────────────────────────

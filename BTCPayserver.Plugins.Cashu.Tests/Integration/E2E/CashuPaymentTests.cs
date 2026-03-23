@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Tests;
+using Microsoft.Playwright;
 using NBitcoin;
 using Xunit;
 using Xunit.Abstractions;
@@ -131,6 +132,7 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         // Wait for redirect back to invoice after payment
         await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
+        await s.Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
 
         var content = await s.Page.ContentAsync();
         Assert.True(
