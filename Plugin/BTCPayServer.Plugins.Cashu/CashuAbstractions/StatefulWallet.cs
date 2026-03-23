@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +8,7 @@ using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.enums;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using BTCPayServer.Plugins.Cashu.Errors;
-using BTCPayServer.Plugins.Cashu.PaymentHandlers;
+using BTCPayServer.Plugins.Cashu.Services;
 using DotNut;
 using DotNut.Abstractions;
 using DotNut.Abstractions.Handlers;

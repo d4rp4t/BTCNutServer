@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +10,7 @@ using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.enums;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using BTCPayServer.Plugins.Cashu.PaymentHandlers;
+using BTCPayServer.Plugins.Cashu.Services;
 using BTCPayServer.Plugins.Cashu.ViewModels;
 using BTCPayServer.Services.Invoices;
 using DotNut;
@@ -20,8 +20,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NBitcoin;
-using NBXplorer.Models;
 using StoreData = BTCPayServer.Data.StoreData;
 
 namespace BTCPayServer.Plugins.Cashu.Controllers;
@@ -93,9 +91,7 @@ public class UICashuWalletController(
             }
             catch (Exception ex)
             {
-                logger.LogError(
-                    $"[Cashu Wallet] Could not load mint {mint}, Exception: {ex.Message}"
-                );
+                logger.LogDebug("(Cashu) Could not load mint {Mint}: {Error}", mint, ex.Message);
                 unavailableMints.Add(mint);
             }
         }
@@ -527,7 +523,7 @@ public class UICashuWalletController(
         {
             if (error != null)
             {
-                logger.LogWarning("Failed mint {Mint}: {Message}", mint, error.Message);
+                logger.LogDebug("(Cashu) Failed to check mint {Mint}: {Message}", mint, error.Message);
                 failedMints.Add(mint);
                 continue;
             }
@@ -619,11 +615,7 @@ public class UICashuWalletController(
         {
             if (error != null)
             {
-                logger.LogWarning(
-                    "Failed to check proof states for mint {Mint}: {Message}",
-                    mint,
-                    error.Message
-                );
+                logger.LogDebug("(Cashu) Failed to check proof states for mint {Mint}: {Message}", mint, error.Message);
                 failedMints.Add(mint);
                 continue;
             }

@@ -57,6 +57,7 @@
                 <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 <span v-else>Pay</span>
             </button>
+            <div v-if="paymentError" class="alert alert-danger mt-3 mb-0" role="alert">{{ paymentError }}</div>
             <p>Merchant will receive full token worth. No change will be withdrawn.</p>
         </form>
         
@@ -75,7 +76,8 @@
                 currentTab: undefined,
                 pastedTokenPaymentUrl: @Safe.Json(Url.Action(nameof(CashuPaymentController.PayByToken), "CashuPayment")),
                 isSubmitting: false,
-                
+                paymentError: null,
+
                 showPinModal: false,
                 pinValue: '',
                 pinError: '',
@@ -90,7 +92,29 @@
             var form = this.$el.querySelector('#payByTokenForm');
             if (form) {
                 form.addEventListener('submit', function(evt) {
+                    evt.preventDefault();
+                    self.paymentError = null;
                     self.isSubmitting = true;
+
+                    var formData = new FormData(form);
+                    fetch(form.action, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(function(response) {
+                        return response.json().then(function(data) {
+                            if (response.ok && data.redirectUrl) {
+                                window.location.href = data.redirectUrl;
+                            } else {
+                                self.paymentError = data.error || 'Payment failed.';
+                                self.isSubmitting = false;
+                            }
+                        });
+                    })
+                    .catch(function() {
+                        self.paymentError = 'Network error. Please try again.';
+                        self.isSubmitting = false;
+                    });
                 });
             }
             
