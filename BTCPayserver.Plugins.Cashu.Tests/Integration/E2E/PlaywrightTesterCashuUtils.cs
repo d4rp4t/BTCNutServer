@@ -248,8 +248,10 @@ public static class PlaywrightTesterCashuUtils
             Xunit.Assert.Fail($"Payment request failed with status {response.Status}: {body}");
         }
 
-        await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
-        await s.Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        // The controller returns Ok({ redirectUrl }) and the JS does window.location.href = redirectUrl.
+        // Since the checkout URL already matches /i/{invoiceId}, we can't rely on WaitForURLAsync.
+        // Instead, wait for the settled state which confirms the payment completed and the page reloaded.
+        await s.Page.WaitForSelectorAsync("#settled", new() { Timeout = 30_000 });
     }
 
     // ── Minting tokens ──────────────────────────────────────────────────────
