@@ -46,7 +46,7 @@ public class CashuLightningClientPayment
         BOLT11 = Bolt11,
         CreatedAt = CreatedAt,
         Amount = Amount,
-        AmountSent = FeeAmount is {} fee ? Amount + fee : Amount,
+        AmountSent = FeeAmount is { } fee ? Amount + fee : Amount,
         Fee = FeeAmount,
     };
 }

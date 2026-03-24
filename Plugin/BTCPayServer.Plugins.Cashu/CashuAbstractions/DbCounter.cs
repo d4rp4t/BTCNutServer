@@ -37,12 +37,12 @@ public class DbCounter : ICounter
     {
         await using var db = _dbContextFactory.CreateContext();
         var conn = db.Database.GetDbConnection();
-        
-        var entityType = db.Model.FindEntityType(typeof(StoreKeysetCounter)) 
+
+        var entityType = db.Model.FindEntityType(typeof(StoreKeysetCounter))
                          ?? throw new ArgumentNullException(nameof(StoreKeysetCounter), "Can't find StoreKeysetCounter table!");
         var schema = entityType.GetSchema();
         var tableName = entityType.GetTableName();
-        
+
         string sql = $"""
                           INSERT INTO "{schema}"."{tableName}" ("StoreId", "KeysetId", "Counter")
                           VALUES (@storeId, @keysetId, @bumpBy)
@@ -50,8 +50,9 @@ public class DbCounter : ICounter
                           DO UPDATE SET "Counter" = "{tableName}"."Counter" + @bumpBy
                           RETURNING "Counter";
                       """;
-        
-        var result = await conn.QuerySingleAsync<long>(sql, new {
+
+        var result = await conn.QuerySingleAsync<long>(sql, new
+        {
             storeId = _storeId,
             keysetId = keysetId.ToString(),
             bumpBy = (long)bumpBy
@@ -69,8 +70,8 @@ public class DbCounter : ICounter
     {
         await using var db = _dbContextFactory.CreateContext();
         var conn = db.Database.GetDbConnection();
-        
-        var entityType = db.Model.FindEntityType(typeof(StoreKeysetCounter)) 
+
+        var entityType = db.Model.FindEntityType(typeof(StoreKeysetCounter))
                          ?? throw new ArgumentNullException(nameof(StoreKeysetCounter), "Can't find StoreKeysetCounter table!");
         var schema = entityType.GetSchema();
         var tableName = entityType.GetTableName();
@@ -83,7 +84,8 @@ public class DbCounter : ICounter
                           RETURNING ("Counter" - @bumpBy) AS "OldValue", "Counter" AS "NewValue";
                       """;
 
-        var result = await conn.QuerySingleAsync<dynamic>(sql, new {
+        var result = await conn.QuerySingleAsync<dynamic>(sql, new
+        {
             storeId = _storeId,
             keysetId = keysetId.ToString(),
             bumpBy = (long)bumpBy
@@ -97,8 +99,8 @@ public class DbCounter : ICounter
     {
         await using var db = _dbContextFactory.CreateContext();
         var conn = db.Database.GetDbConnection();
-        
-        var entityType = db.Model.FindEntityType(typeof(StoreKeysetCounter)) 
+
+        var entityType = db.Model.FindEntityType(typeof(StoreKeysetCounter))
                          ?? throw new ArgumentNullException(nameof(StoreKeysetCounter), "Can't find StoreKeysetCounter table!");
         var schema = entityType.GetSchema();
         var tableName = entityType.GetTableName();
@@ -110,7 +112,8 @@ public class DbCounter : ICounter
                           DO UPDATE SET "Counter" = @counter;
                       """;
 
-        await conn.ExecuteAsync(sql, new {
+        await conn.ExecuteAsync(sql, new
+        {
             storeId = _storeId,
             keysetId = keysetId.ToString(),
             counter = (long)counter

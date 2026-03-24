@@ -10,7 +10,7 @@ foreach (var plugin in plugins)
         var assemblyConfigurationAttribute = typeof(Program).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>();
         var buildConfigurationName = assemblyConfigurationAttribute?.Configuration;
         var x = Directory.GetDirectories(Path.Combine(plugin, "bin"));
-        
+
         p += $"{Path.GetFullPath(plugin)}/bin/{buildConfigurationName}/net8.0/{Path.GetFileName(plugin)}.dll;";
         // if (x.Any(s => s.EndsWith("Altcoins-Debug")))
         // {

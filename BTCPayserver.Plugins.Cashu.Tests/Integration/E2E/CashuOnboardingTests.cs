@@ -126,8 +126,8 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
         var startTask = s.StartAsync();
 
         await Task.WhenAll(cdkTask, nutshellTask, startTask);
-        var cdkSats = cdkTask.Result;
-        var nutshellSats = nutshellTask.Result;
+        var cdkSats = await cdkTask;
+        var nutshellSats = await nutshellTask;
         helper.WriteLine($"Minted {cdkSats} sat on CDK, {nutshellSats} sat on Nutshell");
 
         // Step 2: Setup BTCPay store with the same mnemonic and both mints

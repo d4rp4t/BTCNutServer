@@ -131,8 +131,8 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         registration.NotificationChannel.Writer.TryComplete();
         logger.LogDebug("Unregistered listener {Id}", registrationId);
     }
-    
-    
+
+
     /// <summary>
     ///  recover all non-terminal quotes.
     /// - UNPAID: subscribe via WS - mint sends current state as first notification --> check if there's nothing new
@@ -545,7 +545,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                         logger.LogDebug("Rolled back payment {PaymentId}, quote {State}", paymentId, quote.State);
                         break;
 
-                    // "PENDING": payment still in flight
+                        // "PENDING": payment still in flight
                 }
             }
             catch (Exception ex)

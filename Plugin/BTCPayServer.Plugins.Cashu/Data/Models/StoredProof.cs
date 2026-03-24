@@ -14,7 +14,7 @@ public class StoredProof : Proof
 
     // FK for exported tokens - null means proof is in wallet, set means exported
     public Guid? ExportedTokenId { get; set; }
-    
+
     public Guid? CashuLightningClientInvoiceId { get; set; }
     public Guid? CashuLightningClientPaymentId { get; set; }
 
