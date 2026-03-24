@@ -82,7 +82,7 @@ public class CashuPaymentService(
             throw new InvalidOperationException("Invalid store"); // should never happen 
         }
         
-        var cashuPaymentMethodConfig = storeData?.GetPaymentMethodConfig<CashuPaymentMethodConfig>(
+        var cashuPaymentMethodConfig = storeData.GetPaymentMethodConfig<CashuPaymentMethodConfig>(
             CashuPlugin.CashuPmid,
             handlers
         );
@@ -112,13 +112,6 @@ public class CashuPaymentService(
         {
             logs.PayServer.LogDebug("(Cashu) Protocol error for invoice {InvoiceId}: {Error}", invoiceId, ex.Message);
             throw new CashuPaymentException(ex.Message, ex);
-        }
-        catch (Exception)
-        {
-            logs.PayServer.LogDebug("(Cashu) Couldn't fetch token/sat rate for invoice {InvoiceId}", invoiceId);
-            throw new CashuPaymentException(
-                "Couldn't process the payment. Can't fetch token/satoshi rate from mint."
-            );
         }
 
         var invoiceAmount = Money.Coins(
@@ -201,19 +194,10 @@ public class CashuPaymentService(
             throw new KeysetConflictException(ex.Message, ex);
         }
 
-        List<GetKeysetsResponse.KeysetItemResponse> keysets = null;
-        try
+        var keysets = await ctx.Wallet.GetKeysets();
+        if (keysets == null)
         {
-            keysets = await ctx.Wallet.GetKeysets();
-            if (keysets == null)
-            {
-                throw new MintOperationException("No keysets found.");
-            }
-        }
-        catch (Exception ex)
-        {
-            logs.PayServer.LogDebug("(Cashu) Couldn't get keysets. Funds weren't spent.");
-            throw new MintOperationException("Could not get keysets.", ex);
+            throw new MintOperationException("No keysets found.");
         }
 
         ctx.Token.Proofs = CashuUtils.ExpandShortKeysetIds(ctx.Token.Proofs, keysets);
@@ -336,19 +320,10 @@ public class CashuPaymentService(
             logs.PayServer.LogDebug("(Cashu) Could not find lightning client for melt operation");
             throw new LightningUnavailableException();
         }
-        List<GetKeysetsResponse.KeysetItemResponse> keysets;
-        try
+        var keysets = await opCtx.Wallet.GetKeysets();
+        if (keysets == null)
         {
-            keysets = await opCtx.Wallet.GetKeysets();
-            if (keysets == null)
-            {
-                throw new MintOperationException("No keysets found.");
-            }
-        }
-        catch (Exception ex)
-        {
-            logs.PayServer.LogDebug("(Cashu) Couldn't get keysets. Funds weren't spent.");
-            throw new MintOperationException("Could not get keysets.", ex);
+            throw new MintOperationException("No keysets found.");
         }
 
         opCtx.Token.Proofs = CashuUtils.ExpandShortKeysetIds(opCtx.Token.Proofs, keysets);
@@ -760,10 +735,6 @@ public class CashuPaymentService(
             {
                 return new PollResult() { State = CashuPaymentState.Pending, Error = ex };
             }
-            catch (Exception ex)
-            {
-                return new PollResult() { State = CashuPaymentState.Unknown, Error = ex };
-            }
         }
 
         if (lnInvoice.Status == LightningInvoiceStatus.Expired)
@@ -827,9 +798,9 @@ public class CashuPaymentService(
                 Error = new CashuPluginException("Swap inputs and outputs aren't balanced!"),
             };
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            return new PollResult { State = CashuPaymentState.Unknown, Error = ex };
+            return new PollResult { State = CashuPaymentState.Pending, Error = ex };
         }
     }
 

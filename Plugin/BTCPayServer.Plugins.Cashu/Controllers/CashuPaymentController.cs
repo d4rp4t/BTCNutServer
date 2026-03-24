@@ -56,10 +56,6 @@ public class CashuPaymentController : Controller
         {
             return StatusCode(504, new { error = "The payment request timed out. Please try again." });
         }
-        catch (Exception)
-        {
-            return StatusCode(500, new { error = "An unexpected error occurred. Please try again later." });
-        }
 
         var redirectUrl = Url.ActionAbsolute(
             this.Request,
@@ -123,10 +119,6 @@ public class CashuPaymentController : Controller
         catch (OperationCanceledException)
         {
             return StatusCode(504, "The payment request timed out. Please try again.");
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, "An unexpected error occurred. Please try again later.");
         }
     }
 }

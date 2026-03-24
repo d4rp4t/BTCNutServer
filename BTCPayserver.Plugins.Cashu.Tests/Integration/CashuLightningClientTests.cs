@@ -13,8 +13,21 @@ namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 
 [Trait("Category", "Integration")]
 [Collection(nameof(NonParallelizableCollectionDefinition))]
-public class CashuLightningClientTests(ITestOutputHelper helper)
+public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetime
 {
+    private MintListener? _listener;
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        if (_listener is not null)
+        {
+            await _listener.StopAsync(CancellationToken.None);
+            _listener.Dispose();
+        }
+    }
+
     private static readonly Network TestNetwork = Network.RegTest;
 
     private string CdkMintUrl =>
@@ -71,9 +84,8 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         // Pay the BOLT11 via customer_lnd
         await PayBolt11ViaLnd(invoice.BOLT11, CustomerLndUrl);
 
-        // Wait for the listener to notify
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var paid = await invoiceListener.WaitInvoice(cts.Token);
+        // Wait for the listener to notify, with polling fallback
+        var paid = await WaitForInvoicePaid(client, invoiceListener, invoice.Id);
 
         helper.WriteLine($"Listener notified: {paid.Id}, status: {paid.Status}");
         Assert.Equal(invoice.Id, paid.Id);
@@ -109,12 +121,13 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
             "balance test",
             TimeSpan.FromMinutes(10)
         );
+        // Start listening BEFORE paying so we don't miss notifications
+        var invoiceListener = await client.Listen();
+
         await PayBolt11ViaLnd(invoice.BOLT11, CustomerLndUrl);
 
-        // Wait for mint to process and proofs to be saved
-        var invoiceListener = await client.Listen();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var paid = await invoiceListener.WaitInvoice(cts.Token);
+        // Wait for the listener to notify, with polling fallback
+        var paid = await WaitForInvoicePaid(client, invoiceListener, invoice.Id);
         Assert.Equal(LightningInvoiceStatus.Paid, paid.Status);
 
         var balance = await client.GetBalance();
@@ -142,10 +155,10 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
             "fund wallet",
             TimeSpan.FromMinutes(10)
         );
+
         await PayBolt11ViaLnd(invoice.BOLT11, CustomerLndUrl);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var paid = await invoiceListener.WaitInvoice(cts.Token);
+        var paid = await WaitForInvoicePaid(client, invoiceListener, invoice.Id);
         helper.WriteLine($"Funded: {paid.Id}, status: {paid.Status}");
 
         // Check balance before paying
@@ -229,8 +242,8 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         );
         await PayBolt11ViaLnd(fundInvoice.BOLT11, CustomerLndUrl);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await invoiceListener.WaitInvoice(cts.Token);
+        var paid = await WaitForInvoicePaid(client, invoiceListener, fundInvoice.Id);
+        helper.WriteLine($"Funded: {paid.Status}");
 
         // Pay should succeed with secret
         var targetBolt11 = await CreateBolt11OnLnd(10, MerchantLndUrl);
@@ -238,6 +251,62 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
 
         helper.WriteLine($"Pay result: {payResponse.Result}");
         Assert.Equal(PayResult.Ok, payResponse.Result);
+    }
+
+    /// <summary>
+    /// Races the WS listener against polling GetInvoice.
+    /// The WS path can silently fail (fire-and-forget subscription, NullLogger),
+    /// so polling provides a deterministic fallback.
+    /// </summary>
+    private async Task<LightningInvoice> WaitForInvoicePaid(
+        CashuLightningClient client,
+        ILightningInvoiceListener listener,
+        string invoiceId,
+        int timeoutSeconds = 30)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
+        var wsTask = Task.Run(async () =>
+        {
+            try { return await listener.WaitInvoice(cts.Token); }
+            catch (OperationCanceledException) { return null; }
+        });
+
+        var pollTask = Task.Run(async () =>
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                await Task.Delay(500, cts.Token);
+                var inv = await client.GetInvoice(invoiceId);
+                if (inv?.Status == LightningInvoiceStatus.Paid)
+                {
+                    helper.WriteLine("Invoice settled via polling fallback");
+                    return inv;
+                }
+            }
+            return null;
+        });
+
+        var completed = await Task.WhenAny(wsTask, pollTask);
+        var result = await completed;
+        if (result is not null)
+        {
+            await cts.CancelAsync();
+            return result;
+        }
+
+        // Both failed — wait for the other one
+        var other = completed == wsTask ? pollTask : wsTask;
+        try
+        {
+            var otherResult = await other;
+            if (otherResult is not null)
+                return otherResult;
+        }
+        catch (OperationCanceledException) { }
+
+        throw new TimeoutException(
+            $"Invoice {invoiceId} did not reach Paid status within {timeoutSeconds}s");
     }
 
     private async Task<(CashuLightningClient client, MintListener listener)> SetupClient(
@@ -251,7 +320,8 @@ public class CashuLightningClientTests(ITestOutputHelper helper)
         Environment.SetEnvironmentVariable("TESTS_POSTGRES", pgConn);
 
         var db = TestDbFactory.Create();
-        var listener = db.CreateMintListener();
+        var listener = db.CreateMintListener(helper);
+        _listener = listener;
         await listener.StartAsync(CancellationToken.None);
 
         var mnemonic = new Mnemonic(

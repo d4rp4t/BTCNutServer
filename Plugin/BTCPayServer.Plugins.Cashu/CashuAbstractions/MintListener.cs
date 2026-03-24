@@ -23,6 +23,11 @@ namespace BTCPayServer.Plugins.Cashu.CashuAbstractions;
 public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintListener> logger)
     : IHostedService, IDisposable
 {
+    /// <summary>
+    /// Interval for periodic cleanup and retry of stuck quotes.
+    /// Default: 1 minute. Tests can lower this for faster feedback.
+    /// </summary>
+    public TimeSpan CleanupInterval { get; init; } = TimeSpan.FromMinutes(1);
     private readonly WebsocketService _wsService = new(new WebsocketServiceOptions { AutoReconnect = false });
     private readonly ConcurrentDictionary<string, (Subscription Sub, CancellationTokenSource Cts)> _activeSubscriptions = new();
     private readonly ConcurrentDictionary<string, CashuListenerRegistration> _listeners = new();
@@ -38,9 +43,9 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _backgroundTask = Task.Run(() => RecoverAsync(_cts.Token), _cts.Token);
-        _expiryTimer = new Timer(_ => _ = 
+        _expiryTimer = new Timer(_ => _ =
                 CleanupExpiredQuotesAsync(), null,
-            TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+            CleanupInterval, CleanupInterval);
         return Task.CompletedTask;
     }
 
@@ -266,9 +271,16 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                 var minted = await MintAndSaveProofsAsync(db, payment, ct);
                 if (minted)
                     NotifyListeners(payment);
+                else
+                {
+                    // Minting failed - don't treat as terminal so the subscription stays alive
+                    // and we can retry on the next notification or periodic cleanup picks it up.
+                    logger.LogWarning("Minting failed for quote {QuoteId}, keeping subscription alive", quoteId);
+                    return false;
+                }
             }
 
-            return state is "PAID" or "ISSUED";
+            return state is "ISSUED";
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
@@ -415,6 +427,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
                 logger.LogDebug("Cleaned up {Count} expired quotes", expired.Count);
             }
 
+            await RetryStuckPaidQuotesAsync();
             await CheckPendingPaymentsAsync();
 
             foreach (var connection in _wsService.GetConnections().ToList())
@@ -436,6 +449,40 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         }
     }
 
+
+    private async Task RetryStuckPaidQuotesAsync()
+    {
+        try
+        {
+            await using var db = dbContextFactory.CreateContext();
+            var stuckPaid = await db.LightningInvoices
+                .Where(p => p.QuoteState == "PAID")
+                .ToListAsync();
+
+            foreach (var payment in stuckPaid)
+            {
+                try
+                {
+                    var minted = await MintAndSaveProofsAsync(db, payment, _cts?.Token ?? CancellationToken.None);
+                    if (minted)
+                    {
+                        NotifyListeners(payment);
+                        logger.LogDebug("Retried and minted stuck quote {QuoteId}", payment.QuoteId);
+                    }
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Retry failed for stuck quote {QuoteId}", payment.QuoteId);
+                }
+            }
+        }
+        catch (OperationCanceledException) { /* shutting down */ }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Error retrying stuck PAID quotes");
+        }
+    }
 
     private async Task CheckPendingPaymentsAsync()
     {
