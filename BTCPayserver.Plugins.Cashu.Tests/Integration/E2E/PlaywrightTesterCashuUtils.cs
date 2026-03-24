@@ -74,11 +74,12 @@ public static class PlaywrightTesterCashuUtils
         await s.Page.AssertNoError();
 
         // use the mnemonic we read from the create page — confirm page has scrambled words
+        // words can repeat in a mnemonic, so we must click unselected matches only
         var first4Words = mnemonic.Split(' ').Take(4).ToArray();
 
         foreach (var word in first4Words)
         {
-            await s.Page.Locator($"#RecoveryPhrase li[data-word='{word}']").ClickAsync();
+            await s.Page.Locator($"#RecoveryPhrase li[data-word='{word}']:not(.clicked)").First.ClickAsync();
         }
 
         // submit confirmation — #proceed becomes active after 4 words selected
@@ -248,6 +249,7 @@ public static class PlaywrightTesterCashuUtils
         }
 
         await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
+        await s.Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
     }
 
     // ── Minting tokens ──────────────────────────────────────────────────────

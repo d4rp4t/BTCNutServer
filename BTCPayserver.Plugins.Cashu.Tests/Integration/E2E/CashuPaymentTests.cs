@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Tests;
+
 using NBitcoin;
 using Xunit;
 using Xunit.Abstractions;
@@ -129,15 +130,9 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             Assert.Fail($"Payment request failed with status {response.Status}: {body}");
         }
 
-        // Wait for redirect back to invoice after payment
+        // Wait for redirect back to invoice checkout and for settled state
         await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
-
-        var content = await s.Page.ContentAsync();
-        Assert.True(
-            content.Contains("Paid", StringComparison.OrdinalIgnoreCase)
-                || content.Contains("settled", StringComparison.OrdinalIgnoreCase),
-            "Expected invoice to be settled after Cashu payment"
-        );
+        await s.Page.WaitForSelectorAsync("#settled", new() { Timeout = 30_000 });
     }
 
     [Fact]

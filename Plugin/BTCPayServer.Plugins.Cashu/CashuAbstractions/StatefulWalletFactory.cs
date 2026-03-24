@@ -71,11 +71,7 @@ public class StatefulWalletFactory
         catch (Exception ex)
         {
             // Log warning but proceed. Wallet might be used for operations not requiring Lightning (e.g. Swap)
-            _logger.LogWarning(
-                "Could not get Lightning Client from store {StoreId}. Reason: {Reason}",
-                storeId,
-                ex.Message
-            );
+            _logger.LogDebug("(Cashu) Could not get Lightning Client for store {StoreId}: {Reason}", storeId, ex.Message);
         }
 
         if (lightningClient != null)

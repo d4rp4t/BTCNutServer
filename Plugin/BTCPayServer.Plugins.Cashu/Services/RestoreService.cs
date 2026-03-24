@@ -41,7 +41,7 @@ public class RestoreService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[Cashu] Wallet restore Service starting...");
+        _logger.LogDebug("(Cashu) Restore service starting");
 
         _cancellationTokenSource = new CancellationTokenSource();
         _processingTask = ProcessRestoreQueueAsync(_cancellationTokenSource.Token);
@@ -51,7 +51,7 @@ public class RestoreService : IHostedService
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[Cashu] Wallet restore Service stopping...");
+        _logger.LogDebug("(Cashu) Restore service stopping");
 
         _cancellationTokenSource?.Cancel();
 
@@ -93,9 +93,7 @@ public class RestoreService : IHostedService
             RestoredMints = new List<RestoredMint>(),
         };
 
-        _logger.LogInformation(
-            $"[Cashu] Wallet restore job {jobId} queued for store {storeId} with {mintUrls.Count} mints"
-        );
+        _logger.LogDebug("(Cashu) Restore job {JobId} queued for store {StoreId} with {MintCount} mints", jobId, storeId, mintUrls.Count);
 
         return jobId;
     }
@@ -141,7 +139,7 @@ public class RestoreService : IHostedService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[Cashu] Error processing wallet restore queue");
+                _logger.LogDebug(ex, "(Cashu) Error processing restore queue");
                 await Task.Delay(5000, cancellationToken);
             }
         }
@@ -153,8 +151,8 @@ public class RestoreService : IHostedService
         status.Status = RestoreState.Processing;
         status.StartedAt = DateTime.UtcNow;
 
-        _logger.LogInformation(
-            "[Cashu] Starting wallet restore job {JobId} for store {StoreId} ({MintCount} mints, max 5 concurrent)",
+        _logger.LogDebug(
+            "(Cashu) Starting restore job {JobId} for store {StoreId} ({MintCount} mints)",
             job.JobId,
             job.StoreId,
             job.MintUrls.Count
@@ -177,8 +175,8 @@ public class RestoreService : IHostedService
 
                 try
                 {
-                    _logger.LogInformation(
-                        "[Cashu] Restoring from mint {MintUrl} for store {StoreId}",
+                    _logger.LogDebug(
+                        "(Cashu) Restoring from mint {MintUrl} for store {StoreId}",
                         mintUrl,
                         job.StoreId
                     );
@@ -206,8 +204,8 @@ public class RestoreService : IHostedService
                         status.ProcessedMints++;
                     }
 
-                    _logger.LogInformation(
-                        "[Cashu] Recovered {ProofCount} proofs from {MintUrl}",
+                    _logger.LogDebug(
+                        "(Cashu) Recovered {ProofCount} proofs from {MintUrl}",
                         restoredMint.Proofs.Count,
                         mintUrl
                     );
@@ -220,7 +218,7 @@ public class RestoreService : IHostedService
                         status.UnreachableMints.Add(mintUrl);
                         status.Errors.Add(error);
                     }
-                    _logger.LogError(ex, "[Cashu] {Error}", error);
+                    _logger.LogDebug(ex, "(Cashu) {Error}", error);
                 }
                 finally
                 {
@@ -246,8 +244,8 @@ public class RestoreService : IHostedService
             status.CompletedAt = DateTime.UtcNow;
             await SaveWalletConfig(job.StoreId, new Mnemonic(job.Seed), cancellationToken);
 
-            _logger.LogInformation(
-                "[Cashu] Restore job {JobId} completed{ErrorInfo}",
+            _logger.LogDebug(
+                "(Cashu) Restore job {JobId} completed{ErrorInfo}",
                 job.JobId,
                 status.Errors.Count > 0 ? $" with {status.Errors.Count} errors" : ""
             );
@@ -258,7 +256,7 @@ public class RestoreService : IHostedService
             status.Errors.Add($"Fatal error: {ex.Message}");
             status.CompletedAt = DateTime.UtcNow;
 
-            _logger.LogError(ex, "[Cashu] Restore job {JobId} failed", job.JobId);
+            _logger.LogDebug(ex, "(Cashu) Restore job {JobId} failed", job.JobId);
         }
     }
 
@@ -320,7 +318,7 @@ public class RestoreService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[Cashu] Error saving recovered tokens to db!");
+            _logger.LogDebug(ex, "(Cashu) Error saving recovered tokens to db");
         }
     }
 
@@ -354,7 +352,7 @@ public class RestoreService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[Cashu] Error saving recovered seed to db!");
+            _logger.LogDebug(ex, "(Cashu) Error saving wallet config to db");
         }
     }
 }

@@ -59,7 +59,7 @@ public class CashuOnboardingTests(ITestOutputHelper helper) : UnitTestBase(helpe
 
         foreach (var word in first4Words)
         {
-            await s.Page.Locator($"#RecoveryPhrase li[data-word='{word}']").ClickAsync();
+            await s.Page.Locator($"#RecoveryPhrase li[data-word='{word}']:not(.clicked)").First.ClickAsync();
         }
 
         // submit confirmation — #proceed becomes active after 4 words selected

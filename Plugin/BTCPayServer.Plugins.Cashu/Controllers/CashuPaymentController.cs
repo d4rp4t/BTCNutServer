@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.IO;
 using System.Linq;
@@ -7,7 +6,7 @@ using System.Threading.Tasks;
 using BTCPayServer.Controllers;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Errors;
-using BTCPayServer.Plugins.Cashu.PaymentHandlers;
+using BTCPayServer.Plugins.Cashu.Services;
 using DotNut;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -41,27 +40,31 @@ public class CashuPaymentController : Controller
         {
             if (!CashuUtils.TryDecodeToken(token, out var decodedToken))
             {
-                throw new CashuPaymentException("Invalid token");
+                throw new InvalidTokenException();
             }
             await _cashuPaymentService.ProcessPaymentAsync(decodedToken, invoiceId);
         }
         catch (CashuPaymentException cex)
         {
-            return BadRequest($"Payment Error: {cex.Message} ");
+            return BadRequest(new { error = cex.Message });
         }
-        catch (Exception ex)
+        catch (CashuPluginException)
         {
-            return BadRequest(ex.Message);
+            return StatusCode(502, new { error = "A system error occurred while processing your payment. Please try again later." });
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(504, new { error = "The payment request timed out. Please try again." });
         }
 
-        return Redirect(
-            Url.ActionAbsolute(
-                this.Request,
-                nameof(UIInvoiceController.Checkout),
-                "UIInvoice",
-                new { invoiceId = invoiceId }
-            ).AbsoluteUri
-        );
+        var redirectUrl = Url.ActionAbsolute(
+            this.Request,
+            nameof(UIInvoiceController.Checkout),
+            "UIInvoice",
+            new { invoiceId = invoiceId }
+        ).AbsoluteUri;
+
+        return Ok(new { redirectUrl });
     }
 
     /// <summary>
@@ -109,9 +112,13 @@ public class CashuPaymentController : Controller
         {
             return BadRequest($"Payment Error: {cex.Message}");
         }
-        catch (Exception ex)
+        catch (CashuPluginException)
         {
-            return BadRequest(ex.Message);
+            return StatusCode(502, "A system error occurred while processing your payment. Please try again later.");
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(504, "The payment request timed out. Please try again.");
         }
     }
 }

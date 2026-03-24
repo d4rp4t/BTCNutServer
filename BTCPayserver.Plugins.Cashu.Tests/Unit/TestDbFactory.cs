@@ -2,8 +2,10 @@ using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 
@@ -45,7 +47,29 @@ public class TestDbFactory : CashuDbContextFactory
         return new TestDbFactory(opts);
     }
 
-    public MintListener CreateMintListener() => new(this, NullLogger<MintListener>.Instance);
+    public MintListener CreateMintListener(ITestOutputHelper? output = null) =>
+        new(this, output != null
+            ? new XunitLogger<MintListener>(output)
+            : NullLogger<MintListener>.Instance)
+        { CleanupInterval = TimeSpan.FromSeconds(3) };
 
     public MintManager CreateMintManager() => new(this);
+}
+
+public class XunitLogger<T>(ITestOutputHelper output) : ILogger<T>
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+        Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        try
+        {
+            output.WriteLine($"[{logLevel}] {formatter(state, exception)}");
+            if (exception != null)
+                output.WriteLine(exception.ToString());
+        }
+        catch { /* xUnit output can fail if test already finished */ }
+    }
 }
