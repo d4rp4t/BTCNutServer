@@ -130,8 +130,7 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             Assert.Fail($"Payment request failed with status {response.Status}: {body}");
         }
 
-        // Wait for redirect back to invoice checkout and for settled state
-        await s.Page.WaitForURLAsync(new Regex($"/i/{invoiceId}"), new() { Timeout = 30_000 });
+        // Wait for settled state (controller returns JSON now, not a redirect)
         await s.Page.WaitForSelectorAsync("#settled", new() { Timeout = 30_000 });
     }
 
