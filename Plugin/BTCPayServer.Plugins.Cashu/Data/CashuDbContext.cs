@@ -32,7 +32,7 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
         {
             Converters = { new SecretJsonConverter(), new PrivKeyJsonConverter() }
         };
-        
+
         modelBuilder.HasDefaultSchema(DefaultPluginSchema);
 
         modelBuilder.Entity<StoredProof>(entity =>
@@ -100,11 +100,11 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
                     k => k.GetHashCode(),
                     k => k
                 ));
-            
+
             entity.HasKey(mk => new { mk.MintId, mk.KeysetId });
 
             entity.HasIndex(mk => mk.MintId);
-            
+
             entity.HasIndex(mk => mk.KeysetId).IsUnique();
 
             entity.HasOne(mk => mk.Mint).WithMany(m => m.Keysets).HasForeignKey(mk => mk.MintId);
@@ -128,8 +128,8 @@ public class CashuDbContext(DbContextOptions<CashuDbContext> options, bool desig
             entity.HasKey(t => t.Id);
             entity.HasIndex(t => t.InvoiceId);
             entity.OwnsOne(t => t.MeltDetails);
-            
-            
+
+
             entity
                 .Property(t => t.OutputData)
                 .HasConversion(

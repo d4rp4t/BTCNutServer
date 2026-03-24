@@ -202,7 +202,7 @@ public class UICashuWalletController(
         };
 
         IActionResult result = RedirectToAction(nameof(CashuWallet), new { storeId = StoreData.Id });
-        
+
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
@@ -212,7 +212,7 @@ public class UICashuWalletController(
                 db.ExportedTokens.Add(exportedTokenEntity);
                 await db.SaveChangesAsync();
                 await transaction.CommitAsync();
-                
+
                 result = RedirectToAction(
                     nameof(ExportedToken),
                     new { tokenId = exportedTokenEntity.Id, storeId = StoreData.Id }
@@ -264,7 +264,7 @@ public class UICashuWalletController(
             exportedToken.Proofs.AddRange(newProofs);
             await db.SaveChangesAsync();
         }
-        
+
 
         var model = new ExportedTokenViewModel()
         {
@@ -385,7 +385,7 @@ public class UICashuWalletController(
         }
 
         var isOld = failedTransaction is { InputAmount: 0, InputProofsJson: null };
-        LightMoney? paymentAmount = isOld  switch
+        LightMoney? paymentAmount = isOld switch
         {
             // old FailedTransactions have InputAmount = 0 and InputProofsJson = NULL
             // this happened because the migration added these columns with default values
@@ -454,7 +454,7 @@ public class UICashuWalletController(
             return NotFound("Failed to fetch mint info");
         }
     }
-    
+
     [HttpGet("{storeId}/cashu/check-token-states")]
     public async Task<IActionResult> CheckAllTokenStates(string storeId)
     {
@@ -481,7 +481,7 @@ public class UICashuWalletController(
                     {
                         // we dont care about keyset sync here. nor the unit
                         var wallet = Wallet.Create().WithMint(mint).WithKeysetSync(false);
-                        
+
                         var allProofs = tokens
                             .Where(t => t.Proofs is { Count: > 0 })
                             .SelectMany(t => t.Proofs!)
@@ -491,18 +491,18 @@ public class UICashuWalletController(
                         {
                             return (Mint: mint, SpentTokens: new List<ExportedToken>(), Error: (Exception?)null);
                         }
-                        
+
                         // map states 
                         var states = await wallet.CheckState(allProofs);
                         var proofToSpent = allProofs
-                            .Zip(states.States, 
-                                (p, s) => new { ProofId = p.ProofId, Spent = s.State == StateResponseItem.TokenState.SPENT})
+                            .Zip(states.States,
+                                (p, s) => new { ProofId = p.ProofId, Spent = s.State == StateResponseItem.TokenState.SPENT })
                             .ToDictionary(x => x.ProofId, x => x.Spent);
-                        
+
                         var spentTokens = new List<ExportedToken>();
                         foreach (var token in tokens.Where(t => t.Proofs is { Count: > 0 }))
                         {
-                            if (token.Proofs.Any(p => proofToSpent[p.ProofId])) 
+                            if (token.Proofs.Any(p => proofToSpent[p.ProofId]))
                                 spentTokens.Add(token);
                         }
 
@@ -514,10 +514,10 @@ public class UICashuWalletController(
                     }
                 });
 
-            var results = await Task.WhenAll(checkTasks);
+        var results = await Task.WhenAll(checkTasks);
 
-            var tokensToMarkAsSpent = new List<ExportedToken>();
-            var failedMints = new List<string>();
+        var tokensToMarkAsSpent = new List<ExportedToken>();
+        var failedMints = new List<string>();
 
         foreach (var (mint, spentTokens, error) in results)
         {
@@ -553,17 +553,17 @@ public class UICashuWalletController(
 
         return RedirectToAction(nameof(CashuWallet), new { storeId });
     }
-    
-    
+
+
     [HttpGet("{storeId}/cashu/remove-spent-proofs")]
     public async Task<IActionResult> RemoveSpentProofs(string storeId)
     {
         await using var db = cashuDbContextFactory.CreateContext();
-        
+
         var proofsToCheck = await db
-            .Proofs.Where(p => 
-                p.StoreId == StoreData.Id && 
-                (p.Status == ProofState.Available )
+            .Proofs.Where(p =>
+                p.StoreId == StoreData.Id &&
+                (p.Status == ProofState.Available)
             )
             .ToListAsync();
 
@@ -627,7 +627,7 @@ public class UICashuWalletController(
         {
             db.Proofs.RemoveRange(proofsToRemove);
             await db.SaveChangesAsync();
-            
+
             TempData[WellKnownTempData.SuccessMessage] =
                 $"Removed {proofsToRemove.Count} spent proof(s) from database.";
         }

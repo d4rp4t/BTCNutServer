@@ -53,7 +53,7 @@ public class CashuPaymentService(
     StatefulWalletFactory statefulWalletFactory,
     Logs logs)
 {
-    
+
     /// <summary>
     /// Processing the payment from user input;
     /// </summary>
@@ -81,7 +81,7 @@ public class CashuPaymentService(
         {
             throw new InvalidOperationException("Invalid store"); // should never happen 
         }
-        
+
         var cashuPaymentMethodConfig = storeData.GetPaymentMethodConfig<CashuPaymentMethodConfig>(
             CashuPlugin.CashuPmid,
             handlers
@@ -91,7 +91,7 @@ public class CashuPaymentService(
             logs.PayServer.LogDebug("(Cashu) Couldn't get Cashu Payment method config for invoice {InvoiceId}", invoiceId);
             throw new CashuPaymentException("Couldn't process the payment. Token wasn't spent.");
         }
-        
+
         var network = handler.Network;
 
         LightMoney singleUnitSatoshiWorth;
@@ -176,7 +176,7 @@ public class CashuPaymentService(
         }
     }
 
-    
+
     private async Task HandleSwapOperation(
         CashuOperationContext ctx,
         CancellationToken cts = default
@@ -229,45 +229,45 @@ public class CashuPaymentService(
                     throw cpe;
 
                 case HttpRequestException httpException:
-                {
-                    var ftx = new FailedTransaction()
                     {
-                        InvoiceId = ctx.Invoice.Id,
-                        StoreId = ctx.Invoice.StoreId,
-                        LastRetried = DateTimeOffset.UtcNow,
-                        MintUrl = ctx.Token.Mint,
-                        InputProofs = ctx.Token.Proofs.ToArray(),
-                        OperationType = OperationType.Swap,
-                        OutputData = swapResult.ProvidedOutputs,
-                        Unit = ctx.Token.Unit,
-                        RetryCount = 0,
-                        Details = "Connection with mint broken while swap",
-                    };
-                    var pollResult = await PollFailedSwap(ftx, ctx.Store, cts);
+                        var ftx = new FailedTransaction()
+                        {
+                            InvoiceId = ctx.Invoice.Id,
+                            StoreId = ctx.Invoice.StoreId,
+                            LastRetried = DateTimeOffset.UtcNow,
+                            MintUrl = ctx.Token.Mint,
+                            InputProofs = ctx.Token.Proofs.ToArray(),
+                            OperationType = OperationType.Swap,
+                            OutputData = swapResult.ProvidedOutputs,
+                            Unit = ctx.Token.Unit,
+                            RetryCount = 0,
+                            Details = "Connection with mint broken while swap",
+                        };
+                        var pollResult = await PollFailedSwap(ftx, ctx.Store, cts);
 
-                    if (!pollResult.Success)
-                    {
-                        ftx.RetryCount += 1;
-                        ftx.LastRetried = DateTimeOffset.Now.ToUniversalTime();
-                        await using var db = cashuDbContextFactory.CreateContext();
-                        await db.FailedTransactions.AddAsync(ftx, cts);
-                        logs.PayServer.LogDebug(
-                            "(Cashu) Transaction {InvoiceId} failed: broken connection with mint. Saved as failed transaction.",
-                            ctx.Invoice.Id
+                        if (!pollResult.Success)
+                        {
+                            ftx.RetryCount += 1;
+                            ftx.LastRetried = DateTimeOffset.Now.ToUniversalTime();
+                            await using var db = cashuDbContextFactory.CreateContext();
+                            await db.FailedTransactions.AddAsync(ftx, cts);
+                            logs.PayServer.LogDebug(
+                                "(Cashu) Transaction {InvoiceId} failed: broken connection with mint. Saved as failed transaction.",
+                                ctx.Invoice.Id
+                            );
+                            await db.SaveChangesAsync(cts);
+                            return;
+                        }
+
+                        await AddProofsToDb(
+                            pollResult.ResultProofs!,
+                            ftx.StoreId,
+                            ftx.MintUrl,
+                            ProofState.Available
                         );
-                        await db.SaveChangesAsync(cts);
+                        await RegisterCashuPayment(ctx);
                         return;
                     }
-
-                    await AddProofsToDb(
-                        pollResult.ResultProofs!,
-                        ftx.StoreId,
-                        ftx.MintUrl,
-                        ProofState.Available
-                    );
-                    await RegisterCashuPayment(ctx);
-                    return;
-                }
                 default:
                     logs.PayServer.LogDebug("(Cashu) Swap failed: {Error}", swapResult.Error?.Message);
                     throw new MintOperationException("Swap failed.", swapResult.Error!);
@@ -542,13 +542,13 @@ public class CashuPaymentService(
             throw new MintOperationException("Melt failed unexpectedly.", meltResponse.Error!);
         }
     }
-    
+
     public Task RegisterCashuPayment(
         CashuOperationContext ctx,
         LightMoney value = null,
         bool markPaid = true
     ) => RegisterCashuPayment(ctx.Invoice, value ?? ctx.Value, markPaid);
-    
+
     public async Task RegisterCashuPayment(
         InvoiceEntity invoice,
         LightMoney value,
@@ -615,7 +615,7 @@ public class CashuPaymentService(
         {
             return;
         }
-        
+
         await mintManager.GetOrCreateMint(mintUrl);
 
         await using var dbContext = cashuDbContextFactory.CreateContext();

@@ -62,12 +62,12 @@ public class CashuPlugin : BaseBTCPayServerPlugin
             }
         );
         services.AddHostedService<MigrationRunner>();
-        
+
         // i couldn't see debug logs without it
-        #if DEBUG
+#if DEBUG
         services.Configure<LoggerFilterOptions>(opts =>
             opts.Rules.Add(new LoggerFilterRule(null, "BTCPayServer.Plugins.Cashu", LogLevel.Debug, null)));
-        #endif
+#endif
 
         base.Execute(services);
     }

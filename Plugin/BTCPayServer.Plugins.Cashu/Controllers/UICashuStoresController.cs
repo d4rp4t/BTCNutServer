@@ -224,7 +224,7 @@ public class UICashuStoresController : Controller
     [HttpPost("{storeId}/cashu/remove-wallet")]
     public async Task<IActionResult> RemoveWallet(string storeId)
     {
-        if (StoreData?.Id is not {} id)
+        if (StoreData?.Id is not { } id)
         {
             return NotFound();
         }
@@ -232,30 +232,30 @@ public class UICashuStoresController : Controller
         await using var db = _cashuDbContextFactory.CreateContext();
         var currentConfig = db.CashuWalletConfig.Where(cwc => cwc.StoreId == id);
         await currentConfig.ExecuteDeleteAsync();
-        
+
         //remove proofs
-        var proofsFromWallet = db.Proofs.Where(p=>p.StoreId == id);
+        var proofsFromWallet = db.Proofs.Where(p => p.StoreId == id);
         await proofsFromWallet.ExecuteDeleteAsync();
-        
+
         //remove exported tokens 
-        var tokensFromWallet = db.ExportedTokens.Where(t=>t.StoreId == id);
+        var tokensFromWallet = db.ExportedTokens.Where(t => t.StoreId == id);
         await tokensFromWallet.ExecuteDeleteAsync();
-        
+
         // remove config and turn off cashu payment method
         var blob = StoreData.GetStoreBlob();
         blob.SetExcluded(CashuPlugin.CashuPmid, true);
         StoreData.SetStoreBlob(blob);
         await _storeRepository.UpdateStore(StoreData);
-        
+
         // remove cashu lightning client payments and invoices
-        var payments = db.LightningPayments.Where(p=>p.StoreId == id);
+        var payments = db.LightningPayments.Where(p => p.StoreId == id);
         await payments.ExecuteDeleteAsync();
-        
+
         var invoices = db.LightningInvoices.Where(p => p.StoreId == id);
         await invoices.ExecuteDeleteAsync();
-        
+
         TempData[WellKnownTempData.SuccessMessage] = "Wallet removed successfully";
-        return RedirectToAction("Dashboard", "UIStores", new {StoreId = StoreData.Id});
+        return RedirectToAction("Dashboard", "UIStores", new { StoreId = StoreData.Id });
     }
 
     [HttpPost("{storeId}/cashu/settings/lightning-client/generate")]

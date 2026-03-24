@@ -48,7 +48,7 @@ public class MintManager
             throw; // should not happen, but rethrow if it does
         }
     }
-    
+
     public async Task SaveKeyset(string mintUrl, KeysetId keysetId, Keyset keyset, string unit)
     {
         mintUrl = NormalizeMintUrl(mintUrl);
@@ -68,13 +68,13 @@ public class MintManager
 
         if (existingEntry != null)
         {
-            return; 
+            return;
         }
-        
+
         var keysetInOtherMint = await db.MintKeys
             .Include(mk => mk.Mint)
             .FirstOrDefaultAsync(mk => mk.KeysetId == keysetId && mk.MintId != mint.Id);
-            
+
         if (keysetInOtherMint != null)
         {
             throw new InvalidOperationException(
@@ -103,7 +103,7 @@ public class MintManager
                 .Include(mk => mk.Mint)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(mk => mk.KeysetId == keysetId);
-                
+
             if (conflicting != null && conflicting.MintId != mint.Id)
             {
                 throw new InvalidOperationException(
@@ -114,7 +114,7 @@ public class MintManager
             }
         }
     }
-    
+
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
         // unique constraint violation
@@ -126,7 +126,7 @@ public class MintManager
     public async Task<(string MintUrl, string Unit)?> GetKeysetInfo(KeysetId keysetId)
     {
         await using var db = _dbContextFactory.CreateContext();
-        
+
         var mintKey = await db.MintKeys
             .Include(mk => mk.Mint)
             .FirstOrDefaultAsync(mk => mk.KeysetId == keysetId);
@@ -142,9 +142,9 @@ public class MintManager
     public async Task<Dictionary<string, (string MintUrl, string Unit)>> MapKeysetIdsToMints(IEnumerable<KeysetId> keysetIds)
     {
         await using var db = _dbContextFactory.CreateContext();
-        
+
         var keysetIdList = keysetIds.ToList();
-        
+
         var mintKeysets = await db.MintKeys
             .Include(mk => mk.Mint)
             .Where(mk => keysetIdList.Contains(mk.KeysetId))

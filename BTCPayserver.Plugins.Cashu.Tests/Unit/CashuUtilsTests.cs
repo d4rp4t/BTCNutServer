@@ -454,7 +454,7 @@ namespace BTCPayserver.Plugins.Cashu.Tests
         [InlineData(100, null, 1)]
         public void FormatAmount_UnknownOrEmptyUnit_Should_DefaultProperly(
             decimal input,
-            string unit,
+            string? unit,
             decimal expected
         )
         {

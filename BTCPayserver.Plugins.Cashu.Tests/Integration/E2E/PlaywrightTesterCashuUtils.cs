@@ -239,6 +239,11 @@ public static class PlaywrightTesterCashuUtils
             r => r.Url.Contains("cashu/pay-invoice"),
             new() { Timeout = 30_000 }
         );
+        // Set up navigation wait BEFORE clicking — the JS fetch callback will do
+        // window.location.href = redirectUrl after the response, causing a page reload.
+        var navigationTask = s.Page.WaitForNavigationAsync(
+            new() { Timeout = 30_000, WaitUntil = WaitUntilState.DOMContentLoaded }
+        );
         await s.Page.Locator("#payButton").ClickAsync();
         var response = await responseTask;
 
@@ -248,9 +253,8 @@ public static class PlaywrightTesterCashuUtils
             Xunit.Assert.Fail($"Payment request failed with status {response.Status}: {body}");
         }
 
-        // The controller returns Ok({ redirectUrl }) and the JS does window.location.href = redirectUrl.
-        // Since the checkout URL already matches /i/{invoiceId}, we can't rely on WaitForURLAsync.
-        // Instead, wait for the settled state which confirms the payment completed and the page reloaded.
+        // Wait for the JS-driven redirect to complete, then for settled state on the new page.
+        await navigationTask;
         await s.Page.WaitForSelectorAsync("#settled", new() { Timeout = 30_000 });
     }
 

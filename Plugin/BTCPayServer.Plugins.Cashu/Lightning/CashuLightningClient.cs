@@ -28,14 +28,14 @@ public class CashuLightningClient(
     : ILightningClient
 {
     public string DisplayName => "Cashu";
-    
+
     public override string ToString()
     {
         return secret is null
             ? $"type=cashu;mint-url={mintUrl};store-id={storeId};"
             : $"type=cashu;mint-url={mintUrl};store-id={storeId};secret={secret};";
     }
-    
+
     /// <summary>
     /// Throws an NotSupportedException which is accepted by
     /// BTCPayServer and means we don't support LightningNodeInformation
@@ -71,14 +71,14 @@ public class CashuLightningClient(
         {
             throw new InvalidOperationException("Mint doesn't support bolt11!");
         }
-        
+
         throw new NotSupportedException();
     }
 
     public async Task<LightningInvoice> CreateInvoice(LightMoney amount, string description, TimeSpan expiry,
         CancellationToken cancellation = default)
     {
-        
+
         await mintManager.GetOrCreateMint(mintUrl.ToString());
 
         await using var db = dbContextFactory.CreateContext();
@@ -88,7 +88,7 @@ public class CashuLightningClient(
             .WithMint(mintUrl)
             .WithMnemonic(walletConfig.WalletMnemonic)
             .WithCounter(new DbCounter(dbContextFactory, storeId));
-        
+
         var satAmount =
             decimal.ToUInt64(
                 decimal.Round(
@@ -96,7 +96,7 @@ public class CashuLightningClient(
                     MidpointRounding.AwayFromZero
                 )
             );
-        
+
         var mintHandler = await wallet
             .CreateMintQuote()
             .WithAmount(satAmount)
@@ -182,10 +182,10 @@ public class CashuLightningClient(
     public async Task<LightningInvoice[]> ListInvoices(ListInvoicesParams request,
         CancellationToken cancellation = default)
     {
-        await using var db =  dbContextFactory.CreateContext();
+        await using var db = dbContextFactory.CreateContext();
         var invoices = db.LightningInvoices
             .Where(s => s.StoreId == storeId);
-        
+
         // it seems like blink plugin also doesn't support offset
 
         if (request.PendingOnly is true)
@@ -439,7 +439,7 @@ public class CashuLightningClient(
      * Not supported *
      * ============= *
      */
-    
+
 
     public Task<OpenChannelResponse> OpenChannel(OpenChannelRequest openChannelRequest,
         CancellationToken cancellation = default)

@@ -390,7 +390,7 @@ public class StatefulWallet : IDisposable
         {
             // Check missing in DB
             var mint = await _mintManager.GetOrCreateMint(_mintUrl);
-            
+
             await using var db = _dbContextFactory.CreateContext();
             var dbKeysets = await db
                 .MintKeys.Where(mk => mk.MintId == mint.Id)

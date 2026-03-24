@@ -19,7 +19,7 @@ public class CashuLightningClientInvoice
     public string QuoteId { get; set; }
     public KeysetId KeysetId { get; set; }
     public List<OutputData> OutputData { get; set; }
-    
+
     /// Raw mint state: "UNPAID", "PAID", "ISSUED":
     public string QuoteState { get; set; }
     public List<StoredProof> Proofs { get; set; }
@@ -27,7 +27,7 @@ public class CashuLightningClientInvoice
     public string InvoiceId { get; set; }
     public LightMoney Amount { get; set; }
     public string? Bolt11 { get; set; }
-    
+
     public DateTimeOffset Created { get; set; }
     public DateTimeOffset Expiry { get; set; }
     public DateTimeOffset? PaidAt { get; set; }
@@ -48,7 +48,7 @@ public class CashuLightningClientInvoice
                 _ => LightningInvoiceStatus.Unpaid
             };
         }
-        private set {}
+        private set { }
     }
     public LightningInvoice ToLightningInvoice()
     {
