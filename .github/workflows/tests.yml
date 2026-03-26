@@ -32,7 +32,18 @@ jobs:
         run: dotnet build BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-restore -c Release -maxcpucount:1 /p:BuildInParallel=false
 
       - name: Run unit tests
-        run: dotnet test BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-build -c Release --filter "Category!=Integration" -v n
+        run: dotnet test BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-build -c Release --filter "Category!=Integration" -v n --collect:"XPlat Code Coverage" --results-directory ./coverage --logger trx
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          directory: ./coverage
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          directory: ./coverage
 
   integration-tests:
     name: Integration Tests
