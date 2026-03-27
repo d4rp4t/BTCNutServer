@@ -37,6 +37,7 @@ public class UICashuWalletController(
     CashuDbContextFactory cashuDbContextFactory,
     MintManager mintManager,
     StatefulWalletFactory walletFactory,
+    FailedTransactionsPoller failedTransactionsPoller,
     ILogger<UICashuWalletController> logger)
     : Controller
 {
@@ -334,51 +335,6 @@ public class UICashuWalletController(
             return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
         }
 
-        CashuPaymentService.PollResult pollResult;
-
-        try
-        {
-            if (failedTransaction.OperationType == OperationType.Melt)
-            {
-                pollResult = await cashuPaymentService.PollFailedMelt(
-                    failedTransaction,
-                    StoreData
-                );
-            }
-            else
-            {
-                pollResult = await cashuPaymentService.PollFailedSwap(
-                    failedTransaction,
-                    StoreData
-                );
-            }
-        }
-        catch (Exception ex)
-        {
-            TempData[WellKnownTempData.ErrorMessage] =
-                "Couldn't poll failed transaction: " + ex.Message;
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        if (pollResult == null)
-        {
-            TempData[WellKnownTempData.ErrorMessage] = "Polling failed. Received no response.";
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        if (!pollResult.Success)
-        {
-            TempData[WellKnownTempData.ErrorMessage] =
-                $"Transaction state: {pollResult.State}. {(pollResult.Error == null ? "" : pollResult.Error.Message)}";
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        await cashuPaymentService.AddProofsToDb(
-            pollResult.ResultProofs,
-            StoreData.Id,
-            failedTransaction.MintUrl,
-            ProofState.Available
-        );
         LightMoney singleUnitPrice;
         try
         {
@@ -414,12 +370,30 @@ public class UICashuWalletController(
             return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
         }
 
+        CashuPaymentService.PollResult pollResult;
+
+        try
+        {
+            pollResult = await failedTransactionsPoller.PollTransaction(failedTransaction);
+        }
+        catch (Exception ex)
+        {
+            TempData[WellKnownTempData.ErrorMessage] =
+                "Couldn't poll failed transaction: " + ex.Message;
+            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
+        }
+
+        if (!pollResult.Success)
+        {
+            TempData[WellKnownTempData.ErrorMessage] =
+                $"Transaction state: {pollResult.State}. {(pollResult.Error == null ? "" : pollResult.Error.Message)}";
+            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
+        }
+
         await cashuPaymentService.RegisterCashuPayment(
             invoice,
             paymentAmount
         );
-        db.FailedTransactions.Remove(failedTransaction);
-        await db.SaveChangesAsync();
         TempData[WellKnownTempData.SuccessMessage] =
             $"Transaction retrieved successfully. Marked as paid.";
         return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
