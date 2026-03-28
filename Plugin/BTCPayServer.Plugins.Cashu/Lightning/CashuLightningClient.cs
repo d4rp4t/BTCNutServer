@@ -168,10 +168,24 @@ public class CashuLightningClient(
         return await GetInvoice(paymentHash.ToString(), cancellation);
     }
 
-    public Task<ILightningInvoiceListener> Listen(CancellationToken cancellation = default)
+    public async Task<ILightningInvoiceListener> Listen(CancellationToken cancellation = default)
     {
         var listener = new CashuListener(mintListener, storeId, mintUrl.ToString().TrimEnd('/'));
-        return Task.FromResult<ILightningInvoiceListener>(listener);
+
+        // Deliver any invoices that were paid before this listener was registered.
+        // This handles fast same-mint payments that complete before BTCPay calls Listen().
+        await using var db = dbContextFactory.CreateContext();
+        var missed = await db.LightningInvoices
+            .Where(i => i.StoreId == storeId
+                     && i.Mint == mintUrl.ToString().TrimEnd('/')
+                     && i.QuoteState == "ISSUED"
+                     && i.Proofs!.Any())
+            .ToListAsync(cancellation);
+
+        foreach (var invoice in missed)
+            listener.Deliver(invoice.ToLightningInvoice());
+
+        return listener;
     }
 
     public Task<LightningInvoice[]> ListInvoices(CancellationToken cancellation = default)
