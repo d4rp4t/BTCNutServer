@@ -20,18 +20,18 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         string mintUrl = MintUrl,
         bool resolved = false,
         OperationType type = OperationType.Melt) => new()
-    {
-        InvoiceId = InvoiceId,
-        StoreId = StoreId,
-        MintUrl = mintUrl,
-        Unit = "sat",
-        InputAmount = 100,
-        OperationType = type,
-        OutputData = [],
-        RetryCount = 0,
-        LastRetried = DateTimeOffset.UtcNow,
-        Resolved = resolved,
-    };
+        {
+            InvoiceId = InvoiceId,
+            StoreId = StoreId,
+            MintUrl = mintUrl,
+            Unit = "sat",
+            InputAmount = 100,
+            OperationType = type,
+            OutputData = [],
+            RetryCount = 0,
+            LastRetried = DateTimeOffset.UtcNow,
+            Resolved = resolved,
+        };
 
     private BTCPayServer.Plugins.Cashu.Services.FailedTransactionsPoller CreatePoller(
         TestDbFactory db) =>

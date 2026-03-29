@@ -25,19 +25,19 @@ public class MintListenerTests(ITestOutputHelper output)
     private static CashuLightningClientInvoice MakeInvoice(
         string quoteState = "UNPAID",
         DateTimeOffset? expiry = null) => new()
-    {
-        StoreId = StoreId,
-        Mint = MintUrl.TrimEnd('/'),
-        QuoteId = Guid.NewGuid().ToString(),
-        InvoiceId = Guid.NewGuid().ToString("N"),
-        KeysetId = new KeysetId("0000000000000001"),
-        OutputData = [],
-        QuoteState = quoteState,
-        Amount = LightMoney.Satoshis(100),
-        Bolt11 = "lnbc...",
-        Created = DateTimeOffset.UtcNow,
-        Expiry = expiry ?? DateTimeOffset.UtcNow.AddHours(1),
-    };
+        {
+            StoreId = StoreId,
+            Mint = MintUrl.TrimEnd('/'),
+            QuoteId = Guid.NewGuid().ToString(),
+            InvoiceId = Guid.NewGuid().ToString("N"),
+            KeysetId = new KeysetId("0000000000000001"),
+            OutputData = [],
+            QuoteState = quoteState,
+            Amount = LightMoney.Satoshis(100),
+            Bolt11 = "lnbc...",
+            Created = DateTimeOffset.UtcNow,
+            Expiry = expiry ?? DateTimeOffset.UtcNow.AddHours(1),
+        };
 
 
     [Fact]
