@@ -60,7 +60,17 @@ public class UICashuWalletController(
             ;
         }
 
-        var mints = await db.Mints.Select(m => m.Url).ToListAsync();
+        var storeKeysetIds = await db.Proofs
+            .Where(p => p.StoreId == StoreData.Id && p.Status == ProofState.Available)
+            .Select(p => p.Id)
+            .Distinct()
+            .ToListAsync();
+
+        var mints = await db.MintKeys
+            .Where(mk => storeKeysetIds.Contains(mk.KeysetId))
+            .Select(mk => mk.Mint.Url)
+            .Distinct()
+            .ToListAsync();
         var proofsWithUnits = new List<(string Mint, string Unit, ulong Amount)>();
 
         var unavailableMints = new List<string>();
