@@ -86,7 +86,8 @@ public class CashuPaymentController : Controller
                 JsonSerializerOptions.Default
             );
             if (
-                payload.PaymentId == null
+                payload == null
+                || payload.PaymentId == null
                 || payload.Mint == null
                 || payload.Unit == null
                 || payload.Proofs == null

@@ -35,7 +35,13 @@ public class FailedTransactionsPoller(
     /// </summary>
     public int MaxConcurrencyPerMint { get; init; } = 3;
 
-    private readonly ConcurrentDictionary<Guid, byte> _tracked = new();
+    /// <summary>
+    /// Max retries before giving up on a failed transaction.
+    /// </summary>
+    public int MaxRetries { get; init; } = 20;
+
+    private static readonly TimeSpan MaxBackoffDelay = TimeSpan.FromHours(2);
+
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _mintSemaphores = new();
     private readonly SemaphoreSlim _pollGuard = new(1, 1);
     private CancellationTokenSource? _cts;
@@ -58,19 +64,6 @@ public class FailedTransactionsPoller(
         _timer?.Change(Timeout.Infinite, 0);
         _cts?.Cancel();
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Saves a failed transaction to the DB and starts tracking it for automatic polling.
-    /// </summary>
-    public async Task AddFailedTx(FailedTransaction ft, CancellationToken ct)
-    {
-        await using var db = dbContextFactory.CreateContext();
-        await db.FailedTransactions.AddAsync(ft, ct);
-        await db.SaveChangesAsync(ct);
-
-        _tracked.TryAdd(ft.Id, 0);
-        logger.LogDebug("(Cashu) Added failed tx {Id} for tracking (Invoice: {InvoiceId})", ft.Id, ft.InvoiceId);
     }
 
     /// <summary>
@@ -114,7 +107,6 @@ public class FailedTransactionsPoller(
                 }
                 ftx.Resolved = true;
                 ftx.Details = "Resolved by poller";
-                _tracked.TryRemove(ftx.Id, out _);
                 logger.LogInformation(
                     "(Cashu) Resolved failed tx {Id} (Invoice: {InvoiceId})",
                     ftx.Id, ftx.InvoiceId);
@@ -122,14 +114,24 @@ public class FailedTransactionsPoller(
 
             case CashuPaymentState.Failed:
                 ftx.Details = result.Error?.Message ?? "Permanently failed";
-                _tracked.TryRemove(ftx.Id, out _);
                 logger.LogWarning(
                     "(Cashu) Failed tx {Id} is permanently failed: {Details}",
                     ftx.Id, ftx.Details);
                 break;
 
             case CashuPaymentState.Pending:
-                ftx.Details = result.Error?.Message ?? "Still pending";
+                if (ftx.RetryCount >= MaxRetries)
+                {
+                    ftx.Resolved = true;
+                    ftx.Details = $"Gave up after {MaxRetries} retries";
+                    logger.LogWarning(
+                        "(Cashu) Giving up on failed tx {Id} (Invoice: {InvoiceId}) after {MaxRetries} retries",
+                        ftx.Id, ftx.InvoiceId, MaxRetries);
+                }
+                else
+                {
+                    ftx.Details = result.Error?.Message ?? "Still pending";
+                }
                 break;
         }
 
@@ -155,16 +157,25 @@ public class FailedTransactionsPoller(
             if (unresolvedTxs.Count == 0)
                 return;
 
-            // Make sure in-memory tracking is in sync
-            foreach (var ftx in unresolvedTxs)
-                _tracked.TryAdd(ftx.Id, 0);
+            var now = DateTimeOffset.UtcNow;
+            var eligibleTxs = unresolvedTxs
+                .Where(ft => now >= ft.LastRetried + GetBackoffDelay(ft.RetryCount))
+                .ToList();
 
-            logger.LogDebug("(Cashu) Polling {Count} unresolved failed transactions", unresolvedTxs.Count);
+            if (eligibleTxs.Count == 0)
+                return;
 
-            // Group by mint and poll concurrently, respecting per-mint limits
-            var byMint = unresolvedTxs.GroupBy(ft => ft.MintUrl);
+            logger.LogDebug("(Cashu) Polling {Count} unresolved failed transactions", eligibleTxs.Count);
+
+            var byMint = eligibleTxs.GroupBy(ft => ft.MintUrl).ToList();
             var mintTasks = byMint.Select(group => PollMintGroupAsync(group.ToList(), ct));
             await Task.WhenAll(mintTasks);
+
+            foreach (var group in byMint)
+            {
+                if (_mintSemaphores.TryRemove(group.Key, out var sem))
+                    sem.Dispose();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -192,11 +203,17 @@ public class FailedTransactionsPoller(
                 var invoice = await invoiceRepository.GetInvoice(ftx.InvoiceId);
                 if (invoice == null || invoice.ExpirationTime <= DateTimeOffset.UtcNow)
                 {
-                    _tracked.TryRemove(ftx.Id, out _);
+                    await using var db = dbContextFactory.CreateContext();
+                    db.FailedTransactions.Attach(ftx);
+                    ftx.Resolved = true;
+                    ftx.Details = invoice == null ? "Invoice not found" : "Invoice expired";
+                    await db.SaveChangesAsync(ct);
                     return;
                 }
 
-                await PollTransaction(ftx, ct);
+                var result = await PollTransaction(ftx, ct);
+                if (result.Success)
+                    await cashuPaymentService.RegisterPaymentForFailedTx(ftx, ct);
             }
             catch (OperationCanceledException)
             {
@@ -213,6 +230,12 @@ public class FailedTransactionsPoller(
         });
 
         await Task.WhenAll(tasks);
+    }
+
+    private TimeSpan GetBackoffDelay(int retryCount)
+    {
+        var ticks = (long)(PollInterval.Ticks * Math.Pow(2, retryCount));
+        return ticks > MaxBackoffDelay.Ticks ? MaxBackoffDelay : TimeSpan.FromTicks(ticks);
     }
 
     public void Dispose()

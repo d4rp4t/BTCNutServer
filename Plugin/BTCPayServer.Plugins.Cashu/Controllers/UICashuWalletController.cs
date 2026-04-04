@@ -335,41 +335,6 @@ public class UICashuWalletController(
             return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
         }
 
-        LightMoney singleUnitPrice;
-        try
-        {
-            singleUnitPrice = await CashuUtils.GetTokenSatRate(
-                failedTransaction.MintUrl,
-                failedTransaction.Unit,
-                handler.Network.NBitcoinNetwork
-            );
-        }
-        catch (Exception)
-        {
-            TempData[WellKnownTempData.ErrorMessage] = $"Couldn't fetch token/satoshi rate";
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        var isOld = failedTransaction is { InputAmount: 0, InputProofsJson: null };
-        LightMoney? paymentAmount = isOld switch
-        {
-            // old FailedTransactions have InputAmount = 0 and InputProofsJson = NULL
-            // this happened because the migration added these columns with default values
-            // the actual input proofs were deleted from the Proofs table (they were customer's proofs, not wallet proofs)
-            // for recovery, we use the invoice amount as approximation
-            // this is best-effort recovery for old failed transactions
-            // the actual input amount is lost, but invoice amount should be close enough
-            true when invoice.Currency is "SATS" => LightMoney.Satoshis(invoice.Price),
-            true when invoice.Currency is "BTC" => LightMoney.Coins(invoice.Price),
-            false => failedTransaction.InputAmount * singleUnitPrice,
-            _ => null
-        };
-        if (paymentAmount is null)
-        {
-            TempData[WellKnownTempData.ErrorMessage] = $"Failed transaction InputAmount is 0 and invoice currency isn't SATS or BTC.";
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
         CashuPaymentService.PollResult pollResult;
 
         try
@@ -390,10 +355,7 @@ public class UICashuWalletController(
             return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
         }
 
-        await cashuPaymentService.RegisterCashuPayment(
-            invoice,
-            paymentAmount
-        );
+        await cashuPaymentService.RegisterPaymentForFailedTx(failedTransaction);
         TempData[WellKnownTempData.SuccessMessage] =
             $"Transaction retrieved successfully. Marked as paid.";
         return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
