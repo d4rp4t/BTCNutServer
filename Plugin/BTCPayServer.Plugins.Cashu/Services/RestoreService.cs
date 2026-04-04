@@ -305,21 +305,11 @@ public class RestoreService : IHostedService
         CancellationToken cancellationToken
     )
     {
-        try
-        {
-            await _mintManager.GetOrCreateMint(mintUrl);
+        await _mintManager.GetOrCreateMint(mintUrl);
 
-            await using var db = _dbContextFactory.CreateContext();
-
-            // add proofs
-            db.Proofs.AddRange(StoredProof.FromBatch(proofs, storeId, ProofState.Available));
-
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "(Cashu) Error saving recovered tokens to db");
-        }
+        await using var db = _dbContextFactory.CreateContext();
+        db.Proofs.AddRange(StoredProof.FromBatch(proofs, storeId, ProofState.Available));
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SaveWalletConfig(string storeId, Mnemonic mnemonic, CancellationToken ct)
