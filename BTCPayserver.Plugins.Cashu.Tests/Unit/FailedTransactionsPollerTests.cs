@@ -42,13 +42,11 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
 
 
     [Fact]
-    public async Task AddFailedTx_SavesToDB()
+    public async Task FailedTx_SavesToDB()
     {
         var db = TestDbFactory.Create();
-        var poller = CreatePoller(db);
-
         var ftx = MakeFailedTx();
-        await poller.AddFailedTx(ftx, CancellationToken.None);
+        await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
         var saved = await ctx.FailedTransactions.FirstOrDefaultAsync(f => f.Id == ftx.Id);
@@ -59,60 +57,46 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task AddFailedTx_MultipleTxs_AllSaved()
+    public async Task FailedTx_MultipleTxs_AllSaved()
     {
         var db = TestDbFactory.Create();
-        var poller = CreatePoller(db);
-
-        var tx1 = MakeFailedTx();
-        var tx2 = MakeFailedTx(type: OperationType.Swap);
-
-        await poller.AddFailedTx(tx1, CancellationToken.None);
-        await poller.AddFailedTx(tx2, CancellationToken.None);
+        await db.SaveAsync(MakeFailedTx());
+        await db.SaveAsync(MakeFailedTx(type: OperationType.Swap));
 
         await using var ctx = db.CreateContext();
-        var count = await ctx.FailedTransactions.CountAsync();
-        Assert.Equal(2, count);
+        Assert.Equal(2, await ctx.FailedTransactions.CountAsync());
     }
 
     [Fact]
-    public async Task AddFailedTx_SetsResolvedFalse()
+    public async Task FailedTx_SetsResolvedFalse()
     {
         var db = TestDbFactory.Create();
-        var poller = CreatePoller(db);
-
         var ftx = MakeFailedTx();
-        await poller.AddFailedTx(ftx, CancellationToken.None);
+        await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
         var saved = await ctx.FailedTransactions.FirstAsync(f => f.Id == ftx.Id);
         Assert.False(saved.Resolved);
     }
 
-
     [Theory]
     [InlineData(OperationType.Melt)]
     [InlineData(OperationType.Swap)]
-    public async Task AddFailedTx_OperationType_PersistedCorrectly(OperationType opType)
+    public async Task FailedTx_OperationType_PersistedCorrectly(OperationType opType)
     {
         var db = TestDbFactory.Create();
-        var poller = CreatePoller(db);
-
         var ftx = MakeFailedTx(type: opType);
-        await poller.AddFailedTx(ftx, CancellationToken.None);
+        await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
         var saved = await ctx.FailedTransactions.FirstAsync(f => f.Id == ftx.Id);
         Assert.Equal(opType, saved.OperationType);
     }
 
-
     [Fact]
-    public async Task AddFailedTx_WithMeltDetails_PersistsMeltDetails()
+    public async Task FailedTx_WithMeltDetails_PersistsMeltDetails()
     {
         var db = TestDbFactory.Create();
-        var poller = CreatePoller(db);
-
         var ftx = MakeFailedTx();
         ftx.MeltDetails = new MeltDetails
         {
@@ -121,8 +105,7 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
             LightningInvoiceId = "ln-inv-123",
             Status = "PENDING",
         };
-
-        await poller.AddFailedTx(ftx, CancellationToken.None);
+        await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
         var saved = await ctx.FailedTransactions
@@ -133,7 +116,6 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         Assert.Equal("melt-quote-123", saved.MeltDetails.MeltQuoteId);
         Assert.Equal("PENDING", saved.MeltDetails.Status);
     }
-
 
     [Fact]
     public void DefaultPollInterval_IsTwoMinutes()

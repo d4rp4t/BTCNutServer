@@ -47,6 +47,13 @@ public class TestDbFactory : CashuDbContextFactory
         return new TestDbFactory(opts);
     }
 
+    public async Task SaveAsync<T>(T entity) where T : class
+    {
+        await using var ctx = CreateContext();
+        ctx.Set<T>().Add(entity);
+        await ctx.SaveChangesAsync();
+    }
+
     public MintListener CreateMintListener(ITestOutputHelper? output = null) =>
         new(this, output != null
             ? new XunitLogger<MintListener>(output)
