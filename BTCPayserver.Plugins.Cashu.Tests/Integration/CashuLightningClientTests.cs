@@ -366,6 +366,101 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         helper.WriteLine($"Paid BOLT11 via LND at {lndUrl}");
     }
 
+    /// <summary>
+    /// Intra-mint E2E: customer and merchant both use the same CDK mint.
+    /// Customer funds via LND, then pays merchant's invoice via Cashu melt.
+    /// This is the self-payment / same-mint scenario that was previously broken.
+    /// </summary>
+    [Fact]
+    public async Task IntraMint_CustomerPaysViaCashuMelt_MerchantListenerNotified()
+    {
+        const string customerStore = "customer-store";
+        const string merchantStore = "merchant-store";
+
+        var pgConn =
+            Environment.GetEnvironmentVariable("TESTS_POSTGRES")
+            ?? "User ID=postgres;Host=localhost;Port=39372;Database=btcpayserver";
+        Environment.SetEnvironmentVariable("TESTS_POSTGRES", pgConn);
+
+        var db = TestDbFactory.Create();
+        var listener = db.CreateMintListener(helper);
+        _listener = listener;
+        await listener.StartAsync(CancellationToken.None);
+
+        // ── Seed wallet configs for both stores ──────────────────────────────
+        var customerMnemonic = new Mnemonic(
+            new NBitcoin.Mnemonic(NBitcoin.Wordlist.English, WordCount.Twelve).ToString());
+        var merchantMnemonic = new Mnemonic(
+            new NBitcoin.Mnemonic(NBitcoin.Wordlist.English, WordCount.Twelve).ToString());
+        var customerSecret = Guid.NewGuid();
+
+        await using (var ctx = db.CreateContext())
+        {
+            ctx.CashuWalletConfig.AddRange(
+                new CashuWalletConfig
+                {
+                    StoreId = customerStore,
+                    WalletMnemonic = customerMnemonic,
+                    Verified = true,
+                    LightningClientSecret = customerSecret,
+                },
+                new CashuWalletConfig
+                {
+                    StoreId = merchantStore,
+                    WalletMnemonic = merchantMnemonic,
+                    Verified = true,
+                    LightningClientSecret = null,
+                }
+            );
+            await ctx.SaveChangesAsync();
+        }
+
+        var mintUri = new Uri(CdkMintUrl);
+        var mintManager = db.CreateMintManager();
+
+        var customerClient = new CashuLightningClient(
+            mintUri, customerStore, customerSecret.ToString(),
+            db, listener, mintManager, TestNetwork);
+
+        var merchantClient = new CashuLightningClient(
+            mintUri, merchantStore, null,
+            db, listener, mintManager, TestNetwork);
+
+        // ── Step 1: Fund customer wallet via LND ─────────────────────────────
+        helper.WriteLine("[1] Funding customer wallet via LND...");
+        var fundInvoice = await customerClient.CreateInvoice(
+            LightMoney.Satoshis(500), "fund customer", TimeSpan.FromMinutes(10));
+
+        var fundListener = await customerClient.Listen();
+        await PayBolt11ViaLnd(fundInvoice.BOLT11, CustomerLndUrl);
+        var funded = await WaitForInvoicePaid(customerClient, fundListener, fundInvoice.Id);
+        Assert.Equal(LightningInvoiceStatus.Paid, funded.Status);
+        helper.WriteLine($"[1] Customer funded: {funded.Status}");
+
+        // ── Step 2: Merchant creates invoice ─────────────────────────────────
+        helper.WriteLine("[2] Merchant creating invoice...");
+        var merchantInvoice = await merchantClient.CreateInvoice(
+            LightMoney.Satoshis(100), "merchant receive", TimeSpan.FromMinutes(10));
+        helper.WriteLine($"[2] Merchant invoice: {merchantInvoice.Id}");
+
+        // ── Step 3: Start listening BEFORE paying (race condition fix) ────────
+        var merchantListener = await merchantClient.Listen();
+
+        // ── Step 4: Customer pays merchant via Cashu melt (intra-mint) ───────
+        helper.WriteLine("[3] Customer paying merchant invoice via Cashu melt (intra-mint)...");
+        var payResponse = await customerClient.Pay(merchantInvoice.BOLT11!);
+        helper.WriteLine($"[3] Pay result: {payResponse.Result}");
+        Assert.Equal(PayResult.Ok, payResponse.Result);
+
+        // ── Step 5: Merchant listener should notify ───────────────────────────
+        helper.WriteLine("[4] Waiting for merchant to receive notification...");
+        var received = await WaitForInvoicePaid(merchantClient, merchantListener, merchantInvoice.Id, timeoutSeconds: 30);
+
+        helper.WriteLine($"[4] Merchant received: {received.Id}, status: {received.Status}");
+        Assert.Equal(merchantInvoice.Id, received.Id);
+        Assert.Equal(LightningInvoiceStatus.Paid, received.Status);
+    }
+
     private async Task<string> CreateBolt11OnLnd(long amountSat, string lndUrl)
     {
         using var http = new HttpClient();

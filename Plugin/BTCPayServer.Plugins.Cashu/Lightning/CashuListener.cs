@@ -22,6 +22,9 @@ public class CashuListener : ILightningInvoiceListener
         return await _registration.NotificationChannel.Reader.ReadAsync(cancellation);
     }
 
+    public void Deliver(LightningInvoice invoice) =>
+        _registration.NotificationChannel.Writer.TryWrite(invoice);
+
     public void Dispose()
     {
         _mintListener.UnregisterListener(_registration.Id);

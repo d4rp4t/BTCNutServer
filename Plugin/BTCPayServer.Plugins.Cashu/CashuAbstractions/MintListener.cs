@@ -27,7 +27,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
     /// Interval for periodic cleanup and retry of stuck quotes.
     /// Default: 1 minute. Tests can lower this for faster feedback.
     /// </summary>
-    public TimeSpan CleanupInterval { get; init; } = TimeSpan.FromMinutes(1);
+    public TimeSpan CleanupInterval { get; init; } = TimeSpan.FromMinutes(2);
     private readonly WebsocketService _wsService = new(new WebsocketServiceOptions { AutoReconnect = false });
     private readonly ConcurrentDictionary<string, (Subscription Sub, CancellationTokenSource Cts)> _activeSubscriptions = new();
     private readonly ConcurrentDictionary<string, CashuListenerRegistration> _listeners = new();
@@ -228,11 +228,11 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
 
             var mintUrl = key.Split('|', 2)[0];
             if (!_activeSubscriptions.Keys.Any(k => k.StartsWith(mintUrl)))
-                await _wsService.DisconnectAsync(mintUrl, ct);
+                await _wsService.DisconnectAsync(mintUrl, CancellationToken.None);
 
             if (!reachedTerminalState && !ct.IsCancellationRequested)
             {
-                logger.LogDebug("Re-subscribing to {Key} after connection loss", key);
+                logger.LogTrace("Re-subscribing to {Key} after connection loss", key);
                 await SubscribeQuoteAsync(mintUrl, key.Split('|', 2)[1], ct);
             }
         }
@@ -249,6 +249,10 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
 
             var state = payload.State;
             var quoteId = payload.Quote;
+
+            // UNPAID is the initial status sent by the mint on every subscribe - nothing to do.
+            if (state is "UNPAID")
+                return false;
 
             await using var db = dbContextFactory.CreateContext();
             var payment = await db.LightningInvoices
@@ -428,6 +432,7 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
             }
 
             await RetryStuckPaidQuotesAsync();
+            await ResubscribeOrphanedQuotesAsync(db);
             await CheckPendingPaymentsAsync();
 
             foreach (var connection in _wsService.GetConnections().ToList())
@@ -481,6 +486,35 @@ public class MintListener(CashuDbContextFactory dbContextFactory, ILogger<MintLi
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Error retrying stuck PAID quotes");
+        }
+    }
+
+    /// <summary>
+    /// Re-subscribes via WS any UNPAID quotes that lost their subscription.
+    /// The mint sends the current state as the first notification (NUT-17),
+    /// so a re-subscribe on an already-PAID quote will trigger minting.
+    /// </summary>
+    private async Task ResubscribeOrphanedQuotesAsync(CashuDbContext db)
+    {
+        try
+        {
+            var unpaid = await db.LightningInvoices
+                .Where(p => p.QuoteState == "UNPAID" && p.Expiry > DateTimeOffset.UtcNow)
+                .ToListAsync();
+
+            var activeKeys = _activeSubscriptions.Keys.ToHashSet();
+            var orphaned = unpaid.Where(p => !activeKeys.Contains($"{p.Mint}|{p.QuoteId}")).ToList();
+
+            if (orphaned.Count > 0)
+                logger.LogDebug("Re-subscribing {Count} orphaned UNPAID quotes", orphaned.Count);
+
+            foreach (var payment in orphaned)
+                await SubscribeQuoteAsync(payment.Mint, payment.QuoteId, _cts?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException) { /* shutting down */ }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Error re-subscribing orphaned quotes");
         }
     }
 

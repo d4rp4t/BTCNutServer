@@ -45,6 +45,8 @@ public class CashuPlugin : BaseBTCPayServerPlugin
         services.AddSingleton<StatefulWalletFactory>();
         services.AddSingleton<MintListener>();
         services.AddHostedService(s => s.GetRequiredService<MintListener>());
+        services.AddSingleton<FailedTransactionsPoller>();
+        services.AddHostedService(s => s.GetRequiredService<FailedTransactionsPoller>());
         services.AddSingleton<ILightningConnectionStringHandler, CashuLightningConnectionStringHandler>();
 
         //Ui extensions

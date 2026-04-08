@@ -37,6 +37,7 @@ public class UICashuWalletController(
     CashuDbContextFactory cashuDbContextFactory,
     MintManager mintManager,
     StatefulWalletFactory walletFactory,
+    FailedTransactionsPoller failedTransactionsPoller,
     ILogger<UICashuWalletController> logger)
     : Controller
 {
@@ -338,31 +339,12 @@ public class UICashuWalletController(
 
         try
         {
-            if (failedTransaction.OperationType == OperationType.Melt)
-            {
-                pollResult = await cashuPaymentService.PollFailedMelt(
-                    failedTransaction,
-                    StoreData
-                );
-            }
-            else
-            {
-                pollResult = await cashuPaymentService.PollFailedSwap(
-                    failedTransaction,
-                    StoreData
-                );
-            }
+            pollResult = await failedTransactionsPoller.PollTransaction(failedTransaction);
         }
         catch (Exception ex)
         {
             TempData[WellKnownTempData.ErrorMessage] =
                 "Couldn't poll failed transaction: " + ex.Message;
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        if (pollResult == null)
-        {
-            TempData[WellKnownTempData.ErrorMessage] = "Polling failed. Received no response.";
             return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
         }
 
@@ -373,53 +355,7 @@ public class UICashuWalletController(
             return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
         }
 
-        await cashuPaymentService.AddProofsToDb(
-            pollResult.ResultProofs,
-            StoreData.Id,
-            failedTransaction.MintUrl,
-            ProofState.Available
-        );
-        LightMoney singleUnitPrice;
-        try
-        {
-            singleUnitPrice = await CashuUtils.GetTokenSatRate(
-                failedTransaction.MintUrl,
-                failedTransaction.Unit,
-                handler.Network.NBitcoinNetwork
-            );
-        }
-        catch (Exception)
-        {
-            TempData[WellKnownTempData.ErrorMessage] = $"Couldn't fetch token/satoshi rate";
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        var isOld = failedTransaction is { InputAmount: 0, InputProofsJson: null };
-        LightMoney? paymentAmount = isOld switch
-        {
-            // old FailedTransactions have InputAmount = 0 and InputProofsJson = NULL
-            // this happened because the migration added these columns with default values
-            // the actual input proofs were deleted from the Proofs table (they were customer's proofs, not wallet proofs)
-            // for recovery, we use the invoice amount as approximation
-            // this is best-effort recovery for old failed transactions
-            // the actual input amount is lost, but invoice amount should be close enough
-            true when invoice.Currency is "SATS" => LightMoney.Satoshis(invoice.Price),
-            true when invoice.Currency is "BTC" => LightMoney.Coins(invoice.Price),
-            false => failedTransaction.InputAmount * singleUnitPrice,
-            _ => null
-        };
-        if (paymentAmount is null)
-        {
-            TempData[WellKnownTempData.ErrorMessage] = $"Failed transaction InputAmount is 0 and invoice currency isn't SATS or BTC.";
-            return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });
-        }
-
-        await cashuPaymentService.RegisterCashuPayment(
-            invoice,
-            paymentAmount
-        );
-        db.FailedTransactions.Remove(failedTransaction);
-        await db.SaveChangesAsync();
+        await cashuPaymentService.RegisterPaymentForFailedTx(failedTransaction);
         TempData[WellKnownTempData.SuccessMessage] =
             $"Transaction retrieved successfully. Marked as paid.";
         return RedirectToAction("FailedTransactions", new { storeId = StoreData.Id });

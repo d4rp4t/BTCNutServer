@@ -543,6 +543,54 @@ public class CashuPaymentService(
         }
     }
 
+    public async Task RegisterPaymentForFailedTx(FailedTransaction ftx, CancellationToken ct = default)
+    {
+        var invoice = await invoiceRepository.GetInvoice(ftx.InvoiceId, true);
+        if (invoice is null)
+            return;
+
+        if (invoice.Status == InvoiceStatus.Settled)
+            return;
+
+        LightMoney singleUnitPrice;
+        try
+        {
+            singleUnitPrice = await CashuUtils.GetTokenSatRate(
+                ftx.MintUrl,
+                ftx.Unit,
+                handler.Network.NBitcoinNetwork
+            );
+        }
+        catch (Exception ex)
+        {
+            logs.PayServer.LogWarning(
+                "(Cashu) Couldn't fetch unit price for failed tx {Id}, skipping payment registration: {Error}",
+                ftx.Id, ex.Message
+            );
+            return;
+        }
+
+        var isOld = ftx is { InputAmount: 0, InputProofsJson: null };
+        LightMoney? paymentAmount = isOld switch
+        {
+            true when invoice.Currency is "SATS" => LightMoney.Satoshis(invoice.Price),
+            true when invoice.Currency is "BTC" => LightMoney.Coins(invoice.Price),
+            false => ftx.InputAmount * singleUnitPrice,
+            _ => null
+        };
+
+        if (paymentAmount is null)
+        {
+            logs.PayServer.LogWarning(
+                "(Cashu) Can't determine payment amount for failed tx {Id}: InputAmount=0 and currency={Currency}",
+                ftx.Id, invoice.Currency
+            );
+            return;
+        }
+
+        await RegisterCashuPayment(invoice, paymentAmount);
+    }
+
     public Task RegisterCashuPayment(
         CashuOperationContext ctx,
         LightMoney value = null,
@@ -715,7 +763,8 @@ public class CashuPaymentService(
                     var keys = await wallet.GetKeys(firstChange.Id);
                     if (keys == null)
                     {
-                        return new PollResult() { State = CashuPaymentState.Success };
+                        // Can't unblind change proofs without keys — retry when mint is reachable.
+                        return new PollResult() { State = CashuPaymentState.Pending };
                     }
                     var proofs = DotNut.Abstractions.Utils.ConstructProofsFromPromises(
                         meltQuoteState.Change.ToList(),
