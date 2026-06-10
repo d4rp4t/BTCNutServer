@@ -24,11 +24,11 @@ public class DbCounterTests
                     Counter = 42,
                 }
             );
-            await seedCtx.SaveChangesAsync();
+            await seedCtx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var counter = new DbCounter(dbf, storeId);
-        var result = await counter.GetCounterForId(keysetId);
+        var result = await counter.GetCounterForId(keysetId, TestContext.Current.CancellationToken);
 
         Assert.Equal((uint)42, result);
     }
@@ -38,7 +38,7 @@ public class DbCounterTests
     {
         var dbf = TestDbFactory.Create();
         var counter = new DbCounter(dbf, "store");
-        var result = await counter.GetCounterForId(new KeysetId("0000000000000001"));
+        var result = await counter.GetCounterForId(new KeysetId("0000000000000001"), TestContext.Current.CancellationToken);
         Assert.Equal((uint)0, result);
     }
 }

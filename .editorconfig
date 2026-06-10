@@ -1,0 +1,4 @@
+root = true
+
+[*.cs]
+dotnet_diagnostic.xUnit1041.severity = suggestion

@@ -16,7 +16,7 @@ public class MintInfoTests(MintFixture fixture)
         var url = mintType == "cdk" ? fixture.CdkMintUrl : fixture.NutshellMintUrl;
         using var client = CashuUtils.GetCashuHttpClient(url);
 
-        var info = await client.GetInfo();
+        var info = await client.GetInfo(TestContext.Current.CancellationToken);
 
         Assert.NotNull(info);
     }
@@ -29,7 +29,7 @@ public class MintInfoTests(MintFixture fixture)
         var url = mintType == "cdk" ? fixture.CdkMintUrl : fixture.NutshellMintUrl;
         using var client = CashuUtils.GetCashuHttpClient(url);
 
-        var keysets = await client.GetKeysets();
+        var keysets = await client.GetKeysets(TestContext.Current.CancellationToken);
 
         Assert.NotNull(keysets);
         Assert.NotEmpty(keysets.Keysets);
@@ -47,7 +47,7 @@ public class MintInfoTests(MintFixture fixture)
         var quote = await client.CreateMintQuote<
             PostMintQuoteBolt11Response,
             PostMintQuoteBolt11Request
-        >("bolt11", req);
+        >("bolt11", req, TestContext.Current.CancellationToken);
 
         Assert.NotNull(quote);
         Assert.NotEmpty(quote.Quote);

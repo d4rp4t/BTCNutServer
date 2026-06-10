@@ -37,7 +37,7 @@ public class CashuLightningClientTests
                 LightningClientSecret = secret,
             }
         );
-        await ctx.SaveChangesAsync();
+        await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     private static CashuLightningClientInvoice MakeInvoice(
@@ -130,11 +130,11 @@ public class CashuLightningClientTests
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(MakeInvoice(invoiceId));
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.GetInvoice(invoiceId);
+        var result = await client.GetInvoice(invoiceId, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(invoiceId, result.Id);
@@ -146,7 +146,7 @@ public class CashuLightningClientTests
         var db = TestDbFactory.Create();
         var client = CreateClient(db, db.CreateMintListener());
 
-        var result = await client.GetInvoice("does-not-exist");
+        var result = await client.GetInvoice("does-not-exist", TestContext.Current.CancellationToken);
 
         Assert.Null(result);
     }
@@ -160,11 +160,11 @@ public class CashuLightningClientTests
             var invoice = MakeInvoice("inv1");
             invoice.StoreId = "other-store";
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.GetInvoice("inv1");
+        var result = await client.GetInvoice("inv1", TestContext.Current.CancellationToken);
 
         Assert.Null(result);
     }
@@ -180,11 +180,11 @@ public class CashuLightningClientTests
                 MakeInvoice("i2", "ISSUED"),
                 MakeInvoice("i3", "EXPIRED")
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListInvoices();
+        var result = await client.ListInvoices(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, result.Length);
     }
@@ -200,11 +200,11 @@ public class CashuLightningClientTests
                 MakeInvoice("i2", "ISSUED"),
                 MakeInvoice("i3")
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true }, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, result.Length);
         Assert.All(result, i => Assert.Equal(LightningInvoiceStatus.Unpaid, i.Status));
@@ -218,11 +218,11 @@ public class CashuLightningClientTests
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningPayments.Add(MakePayment(hash));
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.GetPayment(hash);
+        var result = await client.GetPayment(hash, TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(hash, result.PaymentHash);
@@ -234,7 +234,7 @@ public class CashuLightningClientTests
         var db = TestDbFactory.Create();
         var client = CreateClient(db, db.CreateMintListener());
 
-        var result = await client.GetPayment("nonexistent");
+        var result = await client.GetPayment("nonexistent", TestContext.Current.CancellationToken);
 
         Assert.Null(result);
     }
@@ -250,11 +250,11 @@ public class CashuLightningClientTests
                 MakePayment("h2", "PENDING"),
                 MakePayment("h3")
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = true });
+        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = true }, TestContext.Current.CancellationToken);
 
         Assert.Equal(3, result.Length);
     }
@@ -270,11 +270,11 @@ public class CashuLightningClientTests
                 MakePayment("h2", "PENDING"),
                 MakePayment("h3")
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = false });
+        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = false }, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, result.Length);
         Assert.All(result, p => Assert.Equal(LightningPaymentStatus.Complete, p.Status));
@@ -293,11 +293,11 @@ public class CashuLightningClientTests
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(MakeInvoice("inv", quoteState));
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.GetInvoice("inv");
+        var result = await client.GetInvoice("inv", TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
         Assert.Equal(expected, result.Status);
@@ -339,11 +339,11 @@ public class CashuLightningClientTests
             var p = MakePayment("hash1");
             p.StoreId = "other-store";
             ctx.LightningPayments.Add(p);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.GetPayment("hash1");
+        var result = await client.GetPayment("hash1", TestContext.Current.CancellationToken);
 
         Assert.Null(result);
     }
@@ -357,11 +357,11 @@ public class CashuLightningClientTests
             var foreign = MakePayment("h2");
             foreign.StoreId = "other-store";
             ctx.LightningPayments.AddRange(MakePayment("h1"), foreign);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = true });
+        var result = await client.ListPayments(new ListPaymentsParams { IncludePending = true }, TestContext.Current.CancellationToken);
 
         Assert.Single(result);
         Assert.Equal("h1", result[0].PaymentHash);
@@ -376,11 +376,11 @@ public class CashuLightningClientTests
             var foreign = MakeInvoice("i2");
             foreign.StoreId = "other-store";
             ctx.LightningInvoices.AddRange(MakeInvoice("i1"), foreign);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListInvoices();
+        var result = await client.ListInvoices(TestContext.Current.CancellationToken);
 
         Assert.Single(result);
         Assert.Equal("i1", result[0].Id);
@@ -394,11 +394,11 @@ public class CashuLightningClientTests
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(MakeInvoice("i1", "PAID"));
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true }, TestContext.Current.CancellationToken);
 
         Assert.Single(result);
     }
@@ -410,11 +410,11 @@ public class CashuLightningClientTests
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.AddRange(MakeInvoice("i1"), MakeInvoice("i2", "ISSUED"));
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true }, TestContext.Current.CancellationToken);
 
         Assert.Single(result);
         Assert.Equal("i1", result[0].Id);
@@ -429,11 +429,11 @@ public class CashuLightningClientTests
             var expired = MakeInvoice("i1");
             expired.Expiry = DateTimeOffset.UtcNow.AddSeconds(-60);
             ctx.LightningInvoices.Add(expired);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true });
+        var result = await client.ListInvoices(new ListInvoicesParams { PendingOnly = true }, TestContext.Current.CancellationToken);
 
         Assert.Empty(result);
     }
@@ -445,11 +445,11 @@ public class CashuLightningClientTests
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningPayments.AddRange(MakePayment("h1"), MakePayment("h2", "PENDING"));
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = CreateClient(db, db.CreateMintListener());
-        var result = await client.ListPayments();
+        var result = await client.ListPayments(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, result.Length);
     }

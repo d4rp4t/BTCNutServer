@@ -51,7 +51,8 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var invoice = await client.CreateInvoice(
             LightMoney.Satoshis(100),
             "test invoice",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
 
         helper.WriteLine($"Invoice ID: {invoice.Id}");
@@ -72,12 +73,13 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var invoice = await client.CreateInvoice(
             LightMoney.Satoshis(100),
             "listen test",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
         helper.WriteLine($"Created invoice: {invoice.Id}, BOLT11: {invoice.BOLT11}");
 
         // Start listening before paying
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
 
         // Pay the BOLT11 via customer_lnd
         await PayBolt11ViaLnd(invoice.BOLT11, CustomerLndUrl);
@@ -98,10 +100,11 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var created = await client.CreateInvoice(
             LightMoney.Satoshis(50),
             "get test",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
 
-        var fetched = await client.GetInvoice(created.Id);
+        var fetched = await client.GetInvoice(created.Id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(fetched);
         Assert.Equal(created.Id, fetched.Id);
@@ -117,10 +120,11 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var invoice = await client.CreateInvoice(
             LightMoney.Satoshis(200),
             "balance test",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
         // Start listening BEFORE paying so we don't miss notifications
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
 
         await PayBolt11ViaLnd(invoice.BOLT11, CustomerLndUrl);
 
@@ -128,7 +132,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var paid = await WaitForInvoicePaid(client, invoiceListener, invoice.Id);
         Assert.Equal(LightningInvoiceStatus.Paid, paid.Status);
 
-        var balance = await client.GetBalance();
+        var balance = await client.GetBalance(TestContext.Current.CancellationToken);
         helper.WriteLine(
             $"Balance: {balance.OffchainBalance.Local.ToUnit(LightMoneyUnit.Satoshi)} sat"
         );
@@ -145,13 +149,14 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var (client, _) = await SetupClient();
 
         // Start listening BEFORE paying so we don't miss notifications
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
 
         // Fund the wallet: create invoice + pay it
         var invoice = await client.CreateInvoice(
             LightMoney.Satoshis(1000),
             "fund wallet",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
 
         await PayBolt11ViaLnd(invoice.BOLT11, CustomerLndUrl);
@@ -160,7 +165,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         helper.WriteLine($"Funded: {paid.Id}, status: {paid.Status}");
 
         // Check balance before paying
-        var balance = await client.GetBalance();
+        var balance = await client.GetBalance(TestContext.Current.CancellationToken);
         helper.WriteLine(
             $"Balance before pay: {balance.OffchainBalance.Local.ToUnit(LightMoneyUnit.Satoshi)} sat"
         );
@@ -169,7 +174,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var targetBolt11 = await CreateBolt11OnLnd(10, MerchantLndUrl);
         helper.WriteLine($"Paying BOLT11: {targetBolt11}");
 
-        var payResponse = await client.Pay(targetBolt11);
+        var payResponse = await client.Pay(targetBolt11, TestContext.Current.CancellationToken);
 
         helper.WriteLine(
             $"Pay result: {payResponse.Result}, fee: {payResponse.Details?.FeeAmount}"
@@ -182,10 +187,10 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
     {
         var (client, _) = await SetupClient();
 
-        await client.CreateInvoice(LightMoney.Satoshis(10), "list1", TimeSpan.FromMinutes(10));
-        await client.CreateInvoice(LightMoney.Satoshis(20), "list2", TimeSpan.FromMinutes(10));
+        await client.CreateInvoice(LightMoney.Satoshis(10), "list1", TimeSpan.FromMinutes(10), TestContext.Current.CancellationToken);
+        await client.CreateInvoice(LightMoney.Satoshis(20), "list2", TimeSpan.FromMinutes(10), TestContext.Current.CancellationToken);
 
-        var invoices = await client.ListInvoices();
+        var invoices = await client.ListInvoices(TestContext.Current.CancellationToken);
         helper.WriteLine($"Listed {invoices.Length} invoices");
 
         Assert.True(invoices.Length >= 2);
@@ -200,7 +205,8 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var invoice = await client.CreateInvoice(
             LightMoney.Satoshis(100),
             "receive-only test",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
 
         Assert.NotNull(invoice);
@@ -210,7 +216,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         // Pay should fail without secret
         var targetBolt11 = await CreateBolt11OnLnd(10, MerchantLndUrl);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.Pay(targetBolt11)
+            client.Pay(targetBolt11, TestContext.Current.CancellationToken)
         );
         helper.WriteLine($"Expected error: {ex.Message}");
         Assert.Contains("secret", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -225,18 +231,20 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         var invoice = await client.CreateInvoice(
             LightMoney.Satoshis(100),
             "send+receive test",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
         Assert.NotNull(invoice);
         Assert.NotNull(invoice.BOLT11);
         helper.WriteLine($"Send+receive invoice: {invoice.Id}");
 
         // Fund the wallet
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
         var fundInvoice = await client.CreateInvoice(
             LightMoney.Satoshis(1000),
             "fund",
-            TimeSpan.FromMinutes(10)
+            TimeSpan.FromMinutes(10),
+            TestContext.Current.CancellationToken
         );
         await PayBolt11ViaLnd(fundInvoice.BOLT11, CustomerLndUrl);
 
@@ -245,7 +253,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
 
         // Pay should succeed with secret
         var targetBolt11 = await CreateBolt11OnLnd(10, MerchantLndUrl);
-        var payResponse = await client.Pay(targetBolt11);
+        var payResponse = await client.Pay(targetBolt11, TestContext.Current.CancellationToken);
 
         helper.WriteLine($"Pay result: {payResponse.Result}");
         Assert.Equal(PayResult.Ok, payResponse.Result);
@@ -323,7 +331,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         await listener.StartAsync(CancellationToken.None);
 
         var mnemonic = new Mnemonic(
-            new NBitcoin.Mnemonic(NBitcoin.Wordlist.English, WordCount.Twelve).ToString()
+            new NBitcoin.Mnemonic(Wordlist.English, WordCount.Twelve).ToString()
         );
         var secret = Guid.NewGuid();
 
@@ -410,7 +418,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
                     LightningClientSecret = null,
                 }
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var mintUri = new Uri(CdkMintUrl);
@@ -427,9 +435,9 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         // ── Step 1: Fund customer wallet via LND ─────────────────────────────
         helper.WriteLine("[1] Funding customer wallet via LND...");
         var fundInvoice = await customerClient.CreateInvoice(
-            LightMoney.Satoshis(500), "fund customer", TimeSpan.FromMinutes(10));
+            LightMoney.Satoshis(500), "fund customer", TimeSpan.FromMinutes(10), TestContext.Current.CancellationToken);
 
-        var fundListener = await customerClient.Listen();
+        var fundListener = await customerClient.Listen(TestContext.Current.CancellationToken);
         await PayBolt11ViaLnd(fundInvoice.BOLT11, CustomerLndUrl);
         var funded = await WaitForInvoicePaid(customerClient, fundListener, fundInvoice.Id);
         Assert.Equal(LightningInvoiceStatus.Paid, funded.Status);
@@ -438,15 +446,15 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         // ── Step 2: Merchant creates invoice ─────────────────────────────────
         helper.WriteLine("[2] Merchant creating invoice...");
         var merchantInvoice = await merchantClient.CreateInvoice(
-            LightMoney.Satoshis(100), "merchant receive", TimeSpan.FromMinutes(10));
+            LightMoney.Satoshis(100), "merchant receive", TimeSpan.FromMinutes(10), TestContext.Current.CancellationToken);
         helper.WriteLine($"[2] Merchant invoice: {merchantInvoice.Id}");
 
         // ── Step 3: Start listening BEFORE paying (race condition fix) ────────
-        var merchantListener = await merchantClient.Listen();
+        var merchantListener = await merchantClient.Listen(TestContext.Current.CancellationToken);
 
         // ── Step 4: Customer pays merchant via Cashu melt (intra-mint) ───────
         helper.WriteLine("[3] Customer paying merchant invoice via Cashu melt (intra-mint)...");
-        var payResponse = await customerClient.Pay(merchantInvoice.BOLT11!);
+        var payResponse = await customerClient.Pay(merchantInvoice.BOLT11!, TestContext.Current.CancellationToken);
         helper.WriteLine($"[3] Pay result: {payResponse.Result}");
         Assert.Equal(PayResult.Ok, payResponse.Result);
 

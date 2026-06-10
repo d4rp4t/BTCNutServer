@@ -71,7 +71,7 @@ public class FailedTransactionsUiTests
                     Details = FailedTransactionReasons.Describe(FailedTransactionReasons.DismissedByUser),
                 }
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var controller = new UICashuWalletController(
