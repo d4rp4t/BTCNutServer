@@ -161,9 +161,10 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
                 new KeyValuePair<string, string>("token", token),
             new KeyValuePair<string, string>("invoiceId", invoiceId),
 
-            ])
+            ]),
+            TestContext.Current.CancellationToken
             );
-        var payBody = await payResp.Content.ReadAsStringAsync();
+        var payBody = await payResp.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         helper.WriteLine($"RejectsUntrusted: status={payResp.StatusCode}, body={payBody}");
         Assert.True(
@@ -246,7 +247,7 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             .CreateMintQuote()
             .WithAmount(200)
             .WithUnit("sat")
-            .ProcessAsyncBolt11();
+            .ProcessAsyncBolt11(TestContext.Current.CancellationToken);
 
         var quote = mintHandler.GetQuote();
 
@@ -256,12 +257,13 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         );
         var payResp = await http.PostAsync(
             $"{CustomerLndUrl}/v1/channels/transactions",
-            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json")
+            new StringContent(payBody, System.Text.Encoding.UTF8, "application/json"),
+            TestContext.Current.CancellationToken
         );
         payResp.EnsureSuccessStatusCode();
-        await Task.Delay(2000);
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
 
-        var proofs = await mintHandler.Mint();
+        var proofs = await mintHandler.Mint(TestContext.Current.CancellationToken);
 
         // Build NUT-19 payment request payload
         var payload = new
@@ -278,10 +280,11 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var prUrl = s.ServerUri.AbsoluteUri.TrimEnd('/') + "/cashu/pay-invoice-pr";
         var prResp = await http.PostAsync(
             prUrl,
-            new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json")
+            new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json"),
+            TestContext.Current.CancellationToken
         );
 
-        var prBody = await prResp.Content.ReadAsStringAsync();
+        var prBody = await prResp.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         helper.WriteLine($"NUT-19 response: {prResp.StatusCode}, body: {prBody}");
 
         Assert.True(

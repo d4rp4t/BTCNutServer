@@ -50,7 +50,7 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
-        var saved = await ctx.FailedTransactions.FirstOrDefaultAsync(f => f.Id == ftx.Id);
+        var saved = await ctx.FailedTransactions.FirstOrDefaultAsync(f => f.Id == ftx.Id, TestContext.Current.CancellationToken);
         Assert.NotNull(saved);
         Assert.Equal(InvoiceId, saved.InvoiceId);
         Assert.Equal(StoreId, saved.StoreId);
@@ -65,7 +65,7 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         await db.SaveAsync(MakeFailedTx(type: OperationType.Swap));
 
         await using var ctx = db.CreateContext();
-        Assert.Equal(2, await ctx.FailedTransactions.CountAsync());
+        Assert.Equal(2, await ctx.FailedTransactions.CountAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
-        var saved = await ctx.FailedTransactions.FirstAsync(f => f.Id == ftx.Id);
+        var saved = await ctx.FailedTransactions.FirstAsync(f => f.Id == ftx.Id, TestContext.Current.CancellationToken);
         Assert.Equal(FailedTransactionStatus.Pending, saved.Status);
     }
 
@@ -90,7 +90,7 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         await db.SaveAsync(ftx);
 
         await using var ctx = db.CreateContext();
-        var saved = await ctx.FailedTransactions.FirstAsync(f => f.Id == ftx.Id);
+        var saved = await ctx.FailedTransactions.FirstAsync(f => f.Id == ftx.Id, TestContext.Current.CancellationToken);
         Assert.Equal(opType, saved.OperationType);
     }
 
@@ -111,7 +111,7 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
         await using var ctx = db.CreateContext();
         var saved = await ctx.FailedTransactions
             .Include(f => f.MeltDetails)
-            .FirstAsync(f => f.Id == ftx.Id);
+            .FirstAsync(f => f.Id == ftx.Id, TestContext.Current.CancellationToken);
 
         Assert.NotNull(saved.MeltDetails);
         Assert.Equal("melt-quote-123", saved.MeltDetails.MeltQuoteId);
@@ -165,13 +165,13 @@ public class FailedTransactionsPollerTests(ITestOutputHelper output)
                 MakeFailedTx(status: FailedTransactionStatus.Recovered),
                 MakeFailedTx(status: FailedTransactionStatus.Pending)
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using var readCtx = db.CreateContext();
         var unresolved = await readCtx.FailedTransactions
             .Where(ft => ft.Status == FailedTransactionStatus.Pending)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, unresolved.Count);
     }

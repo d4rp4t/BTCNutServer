@@ -96,10 +96,10 @@ public class FailedTransactionsApiTests(ITestOutputHelper helper) : UnitTestBase
                     Details = FailedTransactionReasons.Describe(FailedTransactionReasons.DismissedByUser),
                 }
             );
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        var response = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions");
+        var response = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var json = await ReadJson(response);
@@ -151,11 +151,11 @@ public class FailedTransactionsApiTests(ITestOutputHelper helper) : UnitTestBase
                 Details = FailedTransactionReasons.Describe(FailedTransactionReasons.StillPending),
             };
             ctx.FailedTransactions.Add(failedTransaction);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
             failedTransactionId = failedTransaction.Id;
         }
 
-        var dismissResponse = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions/{failedTransactionId}");
+        var dismissResponse = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions/{failedTransactionId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, dismissResponse.StatusCode);
 
         var dismissedJson = await ReadJson(dismissResponse);
@@ -166,7 +166,7 @@ public class FailedTransactionsApiTests(ITestOutputHelper helper) : UnitTestBase
             FailedTransactionReasons.DismissedByUser,
             dismissedJson.GetProperty("reasonCode").GetString());
 
-        var listResponse = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions");
+        var listResponse = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
 
         var listJson = await ReadJson(listResponse);

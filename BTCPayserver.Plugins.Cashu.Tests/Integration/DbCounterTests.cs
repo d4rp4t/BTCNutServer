@@ -18,13 +18,14 @@ public class DbCounterTests
         var keysetId = new KeysetId("0000000000000001");
         var counter = new DbCounter(dbf, storeId);
 
-        var result = await counter.IncrementCounter(keysetId, 5);
+        var result = await counter.IncrementCounter(keysetId, 5, TestContext.Current.CancellationToken);
 
         Assert.Equal((uint)5, result);
 
         await using var ctx = dbf.CreateContext();
-        var entry = await ctx.StoreKeysetCounters.FirstOrDefaultAsync(x =>
-            x.StoreId == storeId && x.KeysetId == keysetId
+        var entry = await ctx.StoreKeysetCounters.FirstOrDefaultAsync(
+            x => x.StoreId == storeId && x.KeysetId == keysetId,
+            TestContext.Current.CancellationToken
         );
         Assert.NotNull(entry);
         Assert.Equal((uint)5, entry.Counter);
@@ -47,17 +48,20 @@ public class DbCounterTests
                     Counter = 10,
                 }
             );
-            await seedCtx.SaveChangesAsync();
+            await seedCtx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var counter = new DbCounter(dbf, storeId);
 
-        var result = await counter.IncrementCounter(keysetId, 2);
+        var result = await counter.IncrementCounter(keysetId, 2, TestContext.Current.CancellationToken);
 
         Assert.Equal((uint)12, result);
 
         await using var ctx = dbf.CreateContext();
-        var entry = await ctx.StoreKeysetCounters.FirstAsync(x => x.StoreId == storeId);
+        var entry = await ctx.StoreKeysetCounters.FirstAsync(
+            x => x.StoreId == storeId,
+            TestContext.Current.CancellationToken
+        );
         Assert.Equal((uint)12, entry.Counter);
     }
 }

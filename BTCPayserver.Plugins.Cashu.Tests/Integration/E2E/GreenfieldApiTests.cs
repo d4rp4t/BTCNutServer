@@ -20,7 +20,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
     private static async Task<JsonElement> ReadJson(HttpResponseMessage r)
     {
-        var body = await r.Content.ReadAsStringAsync();
+        var body = await r.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         return JsonDocument.Parse(body).RootElement;
     }
 
@@ -45,7 +45,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
     private async Task CreateWalletAsync(HttpClient http, string storeId)
     {
-        var r = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }));
+        var r = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
     }
 
@@ -57,13 +57,13 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             enabled = true,
             paymentModel = "TrustedMintsOnly",
             trustedMintsUrls = new[] { mintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
     }
 
     private async Task<string> CreateInvoiceAsync(HttpClient http, string storeId, decimal amount = 100, string currency = "SATS")
     {
-        var r = await http.PostAsync($"/api/v1/stores/{storeId}/invoices", Json(new { amount, currency }));
+        var r = await http.PostAsync($"/api/v1/stores/{storeId}/invoices", Json(new { amount, currency }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var id = (await ReadJson(r)).GetProperty("id").GetString();
         Assert.NotNull(id);
@@ -82,7 +82,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mnemonic,
             mintUrls = new[] { CdkMintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, restoreResp.StatusCode);
 
         await EnableCashuAsync(http, storeId);
@@ -101,7 +101,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
         await using var _ = s;
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -120,7 +120,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             enabled = true,
             paymentModel = "TrustedMintsOnly",
             trustedMintsUrls = new[] { CdkMintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
         var json = await ReadJson(r);
@@ -140,7 +140,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             enabled = true,
             paymentModel = "TrustedMintsOnly",
             trustedMintsUrls = new[] { CdkMintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var json = await ReadJson(r);
@@ -154,7 +154,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(/* no perms */);
         await using var _ = s;
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
@@ -164,7 +164,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanModifyStoreSettings);
         await using var _ = s;
 
-        var r = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }));
+        var r = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -181,10 +181,10 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanModifyStoreSettings);
         await using var _ = s;
 
-        var r1 = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }));
+        var r1 = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
 
-        var r2 = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }));
+        var r2 = await http.PostAsync($"/api/v1/stores/{storeId}/cashu/wallet", Json(new { }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, r2.StatusCode);
 
         var json = await ReadJson(r2);
@@ -202,7 +202,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mnemonic,
             mintUrls = new[] { CdkMintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var json = await ReadJson(r);
@@ -220,7 +220,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mnemonic = "totally invalid words here not a valid bip39 mnemonic at all ok",
             mintUrls = new[] { CdkMintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var json = await ReadJson(r);
@@ -233,7 +233,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
         await using var _ = s;
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/restore/nonexistent-job-id");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/restore/nonexistent-job-id", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
     }
 
@@ -248,7 +248,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await using var _ = s;
 
         // before any restore list is empty
-        var r1 = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/restore");
+        var r1 = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/restore", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
         var before = await ReadJson(r1);
         Assert.Equal(JsonValueKind.Array, before.ValueKind);
@@ -259,10 +259,10 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mnemonic,
             mintUrls = new[] { CdkMintUrl }
-        }));
+        }), TestContext.Current.CancellationToken);
 
         // list now contains the job
-        var r2 = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/restore");
+        var r2 = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/restore", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r2.StatusCode);
         var after = await ReadJson(r2);
         Assert.Equal(JsonValueKind.Array, after.ValueKind);
@@ -280,7 +280,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         await CreateWalletAsync(http, storeId);
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/balances");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/balances", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -295,7 +295,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         await CreateWalletAsync(http, storeId);
 
-        var del = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/wallet");
+        var del = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/wallet", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, del.StatusCode);
 
         await CreateWalletAsync(http, storeId);
@@ -311,7 +311,8 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         var r = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/wallet/check-token-states",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
@@ -327,7 +328,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         await CreateWalletAsync(http, storeId);
 
-        var r = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/wallet/spent-proofs");
+        var r = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/wallet/spent-proofs", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -346,7 +347,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mintUrl = CdkMintUrl,
             unit = "sat"
-        }));
+        }), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var json = await ReadJson(r);
@@ -364,7 +365,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
         await using var _ = s;
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -378,7 +379,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
         await using var _ = s;
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens/{Guid.NewGuid()}");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -391,7 +392,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
         await using var _ = s;
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/failed-transactions", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -407,7 +408,8 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         var r = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/failed-transactions/{Guid.NewGuid()}/retry",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
@@ -423,7 +425,8 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         var r = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
@@ -441,7 +444,8 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         var r = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
@@ -460,12 +464,14 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await CreateWalletAsync(http, storeId);
         await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
         var r2 = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
         Assert.Equal(HttpStatusCode.BadRequest, r2.StatusCode);
@@ -483,14 +489,15 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         var gen = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
         var originalSecret = (await ReadJson(gen)).GetProperty("secret").GetString();
 
         var rot = await http.SendAsync(new HttpRequestMessage(
             HttpMethod.Put,
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret"
-        ));
+        ), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, rot.StatusCode);
 
         var newSecret = (await ReadJson(rot)).GetProperty("secret").GetString();
@@ -507,16 +514,18 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await CreateWalletAsync(http, storeId);
         await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
 
-        var del = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/lightning-client-secret");
+        var del = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/lightning-client-secret", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, del.StatusCode);
 
         // after revoke, generate should work again
         var gen2 = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/lightning-client-secret",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
         Assert.Equal(HttpStatusCode.OK, gen2.StatusCode);
     }
@@ -533,7 +542,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         await FundWalletAsync(s, storeId, http, mnemonic);
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/balances");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/wallet/balances", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -561,7 +570,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mintUrl = CdkMintUrl,
             unit = "sat"
-        }));
+        }), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -591,9 +600,9 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mintUrl = CdkMintUrl,
             unit = "sat"
-        }));
+        }), TestContext.Current.CancellationToken);
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -621,11 +630,11 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mintUrl = CdkMintUrl,
             unit = "sat"
-        }));
+        }), TestContext.Current.CancellationToken);
         var exportJson = await ReadJson(exportResp);
         var tokenId = exportJson.GetProperty("id").GetString();
 
-        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens/{tokenId}");
+        var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens/{tokenId}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -649,7 +658,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         // reach the mint (no failedMints).
         await FundWalletAsync(s, storeId, http, mnemonic);
 
-        var r = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/wallet/spent-proofs");
+        var r = await http.DeleteAsync($"/api/v1/stores/{storeId}/cashu/wallet/spent-proofs", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
         var json = await ReadJson(r);
@@ -673,11 +682,12 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         {
             mintUrl = CdkMintUrl,
             unit = "sat"
-        }));
+        }), TestContext.Current.CancellationToken);
 
         var r = await http.PostAsync(
             $"/api/v1/stores/{storeId}/cashu/wallet/check-token-states",
-            Json(new { })
+            Json(new { }),
+            TestContext.Current.CancellationToken
         );
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
 
@@ -701,7 +711,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", "not-a-valid-cashu-token"),
             new KeyValuePair<string, string>("invoiceId", "some-invoice-id")
-            ]));
+            ]), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var json = await ReadJson(r);
@@ -722,7 +732,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
             new KeyValuePair<string, string>("invoiceId", "nonexistent-invoice-id")
-            ]));
+            ]), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var json = await ReadJson(r);
@@ -750,7 +760,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
             new KeyValuePair<string, string>("invoiceId", invoiceId)
-            ]));
+            ]), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
         var json = await ReadJson(r);
@@ -780,7 +790,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
             new KeyValuePair<string, string>("invoiceId", invoiceId!)
-            ]));
+            ]), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, payResp.StatusCode);
         var payJson = await ReadJson(payResp);

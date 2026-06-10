@@ -142,15 +142,15 @@ public class MintListenerTests(ITestOutputHelper output)
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // CleanupInterval = 3s in tests, wait long enough
-        await Task.Delay(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         await using (var ctx = db.CreateContext())
         {
-            var updated = await ctx.LightningInvoices.FirstAsync(i => i.QuoteId == invoice.QuoteId);
+            var updated = await ctx.LightningInvoices.FirstAsync(i => i.QuoteId == invoice.QuoteId, TestContext.Current.CancellationToken);
             Assert.Equal("EXPIRED", updated.QuoteState);
         }
 
@@ -168,14 +168,14 @@ public class MintListenerTests(ITestOutputHelper output)
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         await using (var ctx = db.CreateContext())
         {
-            var updated = await ctx.LightningInvoices.FirstAsync(i => i.QuoteId == invoice.QuoteId);
+            var updated = await ctx.LightningInvoices.FirstAsync(i => i.QuoteId == invoice.QuoteId, TestContext.Current.CancellationToken);
             Assert.Equal("UNPAID", updated.QuoteState);
         }
 
@@ -195,14 +195,14 @@ public class MintListenerTests(ITestOutputHelper output)
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         await using (var ctx = db.CreateContext())
         {
-            var updated = await ctx.LightningInvoices.FirstAsync(i => i.QuoteId == invoice.QuoteId);
+            var updated = await ctx.LightningInvoices.FirstAsync(i => i.QuoteId == invoice.QuoteId, TestContext.Current.CancellationToken);
             Assert.Equal("ISSUED", updated.QuoteState);
         }
 
@@ -221,7 +221,7 @@ public class MintListenerTests(ITestOutputHelper output)
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = new BTCPayServer.Plugins.Cashu.Lightning.CashuLightningClient(
@@ -234,7 +234,7 @@ public class MintListenerTests(ITestOutputHelper output)
             NBitcoin.Network.RegTest
         );
 
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var received = await invoiceListener.WaitInvoice(cts.Token);
@@ -256,7 +256,7 @@ public class MintListenerTests(ITestOutputHelper output)
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = new BTCPayServer.Plugins.Cashu.Lightning.CashuLightningClient(
@@ -269,7 +269,7 @@ public class MintListenerTests(ITestOutputHelper output)
             NBitcoin.Network.RegTest
         );
 
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -290,7 +290,7 @@ public class MintListenerTests(ITestOutputHelper output)
         await using (var ctx = db.CreateContext())
         {
             ctx.LightningInvoices.Add(invoice);
-            await ctx.SaveChangesAsync();
+            await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var client = new BTCPayServer.Plugins.Cashu.Lightning.CashuLightningClient(
@@ -303,7 +303,7 @@ public class MintListenerTests(ITestOutputHelper output)
             NBitcoin.Network.RegTest
         );
 
-        var invoiceListener = await client.Listen();
+        var invoiceListener = await client.Listen(TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>

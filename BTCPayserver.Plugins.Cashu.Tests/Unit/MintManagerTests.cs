@@ -68,7 +68,7 @@ public class MintManagerTests
         Assert.NotEqual(0, mint.Id);
 
         await using var ctx = db.CreateContext();
-        Assert.Equal(1, await ctx.Mints.CountAsync());
+        Assert.Equal(1, await ctx.Mints.CountAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class MintManagerTests
         Assert.Equal(first.Id, second.Id);
 
         await using var ctx = db.CreateContext();
-        Assert.Equal(1, await ctx.Mints.CountAsync());
+        Assert.Equal(1, await ctx.Mints.CountAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class MintManagerTests
         await manager.SaveKeyset("https://mint.test/", keysetId, MakeKeyset(), "sat");
 
         await using var ctx = db.CreateContext();
-        Assert.True(await ctx.MintKeys.AnyAsync(mk => mk.KeysetId == keysetId));
+        Assert.True(await ctx.MintKeys.AnyAsync(mk => mk.KeysetId == keysetId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class MintManagerTests
         await manager.SaveKeyset("https://mint.test/", keysetId, MakeKeyset(), "sat");
 
         await using var ctx = db.CreateContext();
-        Assert.Equal(1, await ctx.MintKeys.CountAsync(mk => mk.KeysetId == keysetId));
+        Assert.Equal(1, await ctx.MintKeys.CountAsync(mk => mk.KeysetId == keysetId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class MintManagerTests
         await manager.SaveKeyset("https://new-mint.test/", SomeKeysetId(), MakeKeyset(), "sat");
 
         await using var ctx = db.CreateContext();
-        Assert.True(await ctx.Mints.AnyAsync(m => m.Url == "https://new-mint.test"));
+        Assert.True(await ctx.Mints.AnyAsync(m => m.Url == "https://new-mint.test", TestContext.Current.CancellationToken));
     }
 
     [Fact]

@@ -101,7 +101,7 @@ public class CashuListenerTests(ITestOutputHelper output)
         var waitTask = Task.Run(() => listener.WaitInvoice(CancellationToken.None));
 
         // Give the wait a moment to start
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         listener.Dispose();
 
