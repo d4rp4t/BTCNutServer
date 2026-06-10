@@ -1,0 +1,33 @@
+name: Auto Tag on Version Change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Plugin/BTCPayServer.Plugins.Cashu/BTCPayServer.Plugins.Cashu.csproj'
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version from csproj
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' Plugin/BTCPayServer.Plugins.Cashu/BTCPayServer.Plugins.Cashu.csproj)
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create tag if not exists
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists, skipping"
+          else
+            echo "Creating tag $TAG"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
