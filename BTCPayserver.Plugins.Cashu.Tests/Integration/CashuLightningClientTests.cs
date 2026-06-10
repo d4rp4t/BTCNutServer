@@ -1,12 +1,10 @@
 using BTCPayServer.Lightning;
-using BTCPayServer.Plugins.Cashu.CashuAbstractions;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using BTCPayServer.Plugins.Cashu.Lightning;
 using BTCPayserver.Plugins.Cashu.Tests.Unit;
 using BTCPayServer.Tests;
 using NBitcoin;
 using Xunit;
-using Xunit.Abstractions;
 using Mnemonic = DotNut.NBitcoin.BIP39.Mnemonic;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
@@ -17,9 +15,9 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
 {
     private MintListener? _listener;
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_listener is not null)
         {

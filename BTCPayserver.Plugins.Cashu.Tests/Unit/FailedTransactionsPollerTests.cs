@@ -2,7 +2,6 @@ using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 

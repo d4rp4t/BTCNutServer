@@ -3,7 +3,6 @@ using BTCPayServer.Tests;
 
 using NBitcoin;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 

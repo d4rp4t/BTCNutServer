@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 
@@ -26,22 +26,13 @@ public class TestDbFactory : CashuDbContextFactory
     {
         DbContextOptions<CashuDbContext> opts;
         var pgConnStr = Environment.GetEnvironmentVariable("TESTS_POSTGRES");
-        if (pgConnStr != null)
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder(pgConnStr)
         {
-            var builder = new Npgsql.NpgsqlConnectionStringBuilder(pgConnStr)
-            {
-                Database = $"cashu_test_{Guid.NewGuid():N}",
-            };
-            opts = new DbContextOptionsBuilder<CashuDbContext>()
-                .UseNpgsql(builder.ConnectionString)
-                .Options;
-        }
-        else
-        {
-            opts = new DbContextOptionsBuilder<CashuDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-        }
+            Database = $"cashu_test_{Guid.NewGuid():N}",
+        };
+        opts = new DbContextOptionsBuilder<CashuDbContext>()
+            .UseNpgsql(builder.ConnectionString)
+            .Options;
 
         using var ctx = new CashuDbContext(opts);
         ctx.Database.EnsureCreated();

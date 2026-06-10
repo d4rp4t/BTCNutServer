@@ -1,12 +1,10 @@
 using System.Net;
 using System.Text.Json;
-using BTCPayServer.Abstractions.Constants;
 using BTCPayServer.Client;
 using BTCPayServer.Plugins.Cashu.Data;
 using BTCPayServer.Plugins.Cashu.Data.Models;
 using BTCPayServer.Tests;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 
