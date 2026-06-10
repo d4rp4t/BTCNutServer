@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using BTCPayServer.Tests;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Integration.E2E;
 

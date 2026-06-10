@@ -19,7 +19,7 @@ public class CashuPlugin : BaseBTCPayServerPlugin
     public const string PluginNavKey = nameof(CashuPlugin) + "Nav";
     public override IBTCPayServerPlugin.PluginDependency[] Dependencies { get; } =
         {
-            new() { Identifier = nameof(BTCPayServer), Condition = ">=2.3.7" },
+            new() { Identifier = nameof(BTCPayServer), Condition = ">=2.4.0" },
         };
 
     internal static readonly PaymentMethodId CashuPmid = new("CASHU");

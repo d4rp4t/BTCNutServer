@@ -4,7 +4,6 @@ using BTCPayServer.Plugins.Cashu.Data.enums;
 using DotNut;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 

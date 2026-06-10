@@ -1,7 +1,6 @@
 using BTCPayServer.Lightning;
 using BTCPayServer.Plugins.Cashu.Lightning;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace BTCPayserver.Plugins.Cashu.Tests.Unit;
 

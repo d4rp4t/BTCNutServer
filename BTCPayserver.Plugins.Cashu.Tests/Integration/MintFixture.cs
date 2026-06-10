@@ -11,7 +11,7 @@ public class MintFixture : IAsyncLifetime
     public string NutshellMintUrl { get; } =
         Environment.GetEnvironmentVariable("TEST_NUTSHELL_MINT_URL") ?? "http://localhost:3339";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await WaitForMintAsync(CdkMintUrl, "CDK");
         await WaitForMintAsync(NutshellMintUrl, "Nutshell");
@@ -45,7 +45,7 @@ public class MintFixture : IAsyncLifetime
         throw new TimeoutException($"{name} mint at {mintUrl} not ready after {timeoutSeconds}s");
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 [CollectionDefinition("Integration")]

@@ -1,7 +1,7 @@
 @using BTCPayServer
 @model BTCPayServer.Plugins.Cashu.ViewModels.WalletRestoreViewModel
 @{
-    Layout = "Views/UIStores/_LayoutWalletSetup";
+    Layout = "Plugins/Wallets/Views/UIStoreOnChainWallets/_LayoutWalletSetup";
     ViewData["Title"] = "Restore your Cashu wallet";
     var words = Model?.Words ?? Array.Empty<string>();
 }
