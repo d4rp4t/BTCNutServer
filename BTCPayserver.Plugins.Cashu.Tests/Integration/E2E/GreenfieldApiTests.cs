@@ -700,7 +700,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var r = await http.PostAsync("/cashu/pay-invoice",
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", "not-a-valid-cashu-token"),
-                new KeyValuePair<string, string>("invoiceId", "some-invoice-id")
+            new KeyValuePair<string, string>("invoiceId", "some-invoice-id")
             ]));
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
@@ -721,7 +721,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var r = await http.PostAsync("/cashu/pay-invoice",
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
-                new KeyValuePair<string, string>("invoiceId", "nonexistent-invoice-id")
+            new KeyValuePair<string, string>("invoiceId", "nonexistent-invoice-id")
             ]));
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
@@ -749,7 +749,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var r = await http.PostAsync("/cashu/pay-invoice",
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
-                new KeyValuePair<string, string>("invoiceId", invoiceId)
+            new KeyValuePair<string, string>("invoiceId", invoiceId)
             ]));
 
         Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
@@ -779,7 +779,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
         var payResp = await http.PostAsync("/cashu/pay-invoice",
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
-                new KeyValuePair<string, string>("invoiceId", invoiceId!)
+            new KeyValuePair<string, string>("invoiceId", invoiceId!)
             ]));
 
         Assert.Equal(HttpStatusCode.OK, payResp.StatusCode);

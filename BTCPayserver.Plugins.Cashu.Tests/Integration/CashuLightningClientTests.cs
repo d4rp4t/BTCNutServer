@@ -323,7 +323,7 @@ public class CashuLightningClientTests(ITestOutputHelper helper) : IAsyncLifetim
         await listener.StartAsync(CancellationToken.None);
 
         var mnemonic = new Mnemonic(
-            new NBitcoin.Mnemonic(NBitcoin.Wordlist.English, WordCount.Twelve).ToString()
+            new NBitcoin.Mnemonic(Wordlist.English, WordCount.Twelve).ToString()
         );
         var secret = Guid.NewGuid();
 

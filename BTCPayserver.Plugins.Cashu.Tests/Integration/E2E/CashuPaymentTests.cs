@@ -159,9 +159,10 @@ public class CashuPaymentTests(ITestOutputHelper helper) : UnitTestBase(helper)
             payUrl,
             new FormUrlEncodedContent([
                 new KeyValuePair<string, string>("token", token),
-                new KeyValuePair<string, string>("invoiceId", invoiceId),
+            new KeyValuePair<string, string>("invoiceId", invoiceId),
+
             ])
-        );
+            );
         var payBody = await payResp.Content.ReadAsStringAsync();
 
         helper.WriteLine($"RejectsUntrusted: status={payResp.StatusCode}, body={payBody}");
