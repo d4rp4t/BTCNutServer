@@ -20,7 +20,7 @@ public class GreenfieldCashuTokensController(
 ) : ControllerBase
 {
     [HttpGet("~/api/v1/stores/{storeId}/cashu/tokens")]
-    [Authorize(Policy = Policies.CanViewStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Greenfield)]
+    [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Greenfield)]
     public async Task<IActionResult> GetExportedTokens(string storeId)
     {
         await using var db = cashuDbContextFactory.CreateContext();
@@ -34,7 +34,7 @@ public class GreenfieldCashuTokensController(
     }
 
     [HttpGet("~/api/v1/stores/{storeId}/cashu/tokens/{tokenId}")]
-    [Authorize(Policy = Policies.CanViewStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Greenfield)]
+    [Authorize(Policy = Policies.CanModifyStoreSettings, AuthenticationSchemes = AuthenticationSchemes.Greenfield)]
     public async Task<IActionResult> GetExportedToken(string storeId, Guid tokenId)
     {
         await using var db = cashuDbContextFactory.CreateContext();
