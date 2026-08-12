@@ -1,4 +1,4 @@
-name: Auto Tag on Version Change
+name: Auto Tag and Publish on Version Change
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - 'Plugin/BTCPayServer.Plugins.Cashu/BTCPayServer.Plugins.Cashu.csproj'
 
 jobs:
-  auto-tag:
+  auto-tag-and-publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,12 +22,25 @@ jobs:
           echo "version=v$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create tag if not exists
+        id: tag
         run: |
           TAG="${{ steps.version.outputs.version }}"
           if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
             echo "Tag $TAG already exists, skipping"
+            echo "created=false" >> $GITHUB_OUTPUT
           else
             echo "Creating tag $TAG"
             git tag "$TAG"
             git push origin "$TAG"
+            echo "created=true" >> $GITHUB_OUTPUT
           fi
+
+      - name: Call plugin builder API
+        if: steps.tag.outputs.created == 'true'
+        run: |
+          curl -v -X POST "https://plugin-builder.btcpayserver.org/api/v1/plugins/btcnutserver/builds" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Basic $(echo -n '${{ secrets.API_USERNAME }}:${{ secrets.API_PASSWORD }}' | base64)" \
+          -d '{
+            "GitRef": "${{ steps.version.outputs.version }}"
+          }'
