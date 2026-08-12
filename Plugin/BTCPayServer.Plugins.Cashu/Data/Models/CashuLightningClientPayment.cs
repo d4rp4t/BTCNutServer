@@ -40,7 +40,10 @@ public class CashuLightningClientPayment
         {
             "PAID" => LightningPaymentStatus.Complete,
             "PENDING" => LightningPaymentStatus.Pending,
-            "UNPAID" => LightningPaymentStatus.Pending,
+            // the melt quote only goes back to UNPAID/EXPIRED once the mint gave up on the
+            // payment, so the reserved ecash is released and the payment can be retried
+            "UNPAID" => LightningPaymentStatus.Failed,
+            "EXPIRED" => LightningPaymentStatus.Failed,
             _ => LightningPaymentStatus.Unknown
         },
         BOLT11 = Bolt11,

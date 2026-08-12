@@ -113,8 +113,8 @@ public class LightningModelTests
     [Theory]
     [InlineData("PAID", LightningPaymentStatus.Complete)]
     [InlineData("PENDING", LightningPaymentStatus.Pending)]
-    [InlineData("UNPAID", LightningPaymentStatus.Pending)]
-    [InlineData("EXPIRED", LightningPaymentStatus.Unknown)]
+    [InlineData("UNPAID", LightningPaymentStatus.Failed)]
+    [InlineData("EXPIRED", LightningPaymentStatus.Failed)]
     [InlineData("BOGUS", LightningPaymentStatus.Unknown)]
     [InlineData(null, LightningPaymentStatus.Unknown)]
     public void Payment_QuoteState_MapsToCorrectStatus(
