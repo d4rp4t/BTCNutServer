@@ -83,6 +83,13 @@ public class GreenfieldCashuWalletController(
             return this.CreateAPIError("invalid-mnemonic", "The provided mnemonic is invalid.");
         }
 
+        // the constructor only checks the word count and wordlist membership
+        if (!mnemonic.IsValidChecksum)
+        {
+            return this.CreateAPIError("invalid-mnemonic",
+                "The provided mnemonic has an invalid checksum.");
+        }
+
         if (request.MintUrls is { Count: > 0 })
         {
             var invalidMints = request.MintUrls

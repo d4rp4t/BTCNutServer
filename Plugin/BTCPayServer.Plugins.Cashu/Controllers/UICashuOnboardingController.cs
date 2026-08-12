@@ -103,11 +103,35 @@ public class UICashuOnboardingController : Controller
             model.MintUrls[i] = MintManager.NormalizeMintUrl(raw);
         }
 
-        if (invalidWordIndices.Count > 0 || invalidMintsIndices.Count > 0)
+        // the wordlist check above passes for any in-wordlist typo - the BIP39 checksum is what
+        // catches a swapped or mistyped word (~15 out of 16 of them)
+        string? mnemonicError = null;
+        if (invalidWordIndices.Count == 0)
+        {
+            try
+            {
+                if (!new Mnemonic(model.Mnemonic ?? string.Empty, wordlist).IsValidChecksum)
+                {
+                    mnemonicError =
+                        "Invalid seed phrase checksum - check the words and their order.";
+                }
+            }
+            catch (FormatException)
+            {
+                mnemonicError = "A seed phrase has to be 12, 15, 18, 21 or 24 words long.";
+            }
+        }
+
+        if (invalidWordIndices.Count > 0 || invalidMintsIndices.Count > 0 || mnemonicError != null)
         {
             model.InvalidWordIndices = invalidWordIndices;
             model.InvalidMintsIndices = invalidMintsIndices;
             StringBuilder msg = new StringBuilder();
+            if (mnemonicError != null)
+            {
+                msg.AppendLine(mnemonicError);
+            }
+
             if (invalidWordIndices.Count > 0)
             {
                 msg.AppendLine(
@@ -125,6 +149,31 @@ public class UICashuOnboardingController : Controller
             TempData[WellKnownTempData.ErrorMessage] = msg.ToString();
 
             return View("Views/Cashu/Onboarding/RestoreFromMnemonic.cshtml", model);
+        }
+
+        await using (var walletDb = _cashuDbContextFactory.CreateContext())
+        {
+            // restoring a different seed over a wallet in use would replace the seed every proof
+            // is derived from, and the operator's backup would no longer recover anything received
+            // afterwards. re-running the restore with the same seed (the "try again" link on a
+            // partially failed job) is fine, and so is replacing an unverified config - that one
+            // is an abandoned create-mnemonic flow.
+            var existingConfig = await walletDb.CashuWalletConfig.SingleOrDefaultAsync(cwc =>
+                cwc.StoreId == StoreData.Id
+            );
+            if (existingConfig is { Verified: true }
+                && !string.Equals(existingConfig.WalletMnemonic?.ToString(),
+                    new Mnemonic(model.Mnemonic, wordlist).ToString(), StringComparison.Ordinal))
+            {
+                TempData[WellKnownTempData.ErrorMessage] =
+                    "This store already has a Cashu wallet with a different seed phrase. "
+                    + "Delete the wallet before restoring another one.";
+                return RedirectToAction(
+                    "CashuWallet",
+                    "UICashuWallet",
+                    new { storeId = StoreData.Id }
+                );
+            }
         }
 
         var jobId = _restoreService.QueueRestore(StoreData.Id, model.MintUrls, model.Mnemonic);
