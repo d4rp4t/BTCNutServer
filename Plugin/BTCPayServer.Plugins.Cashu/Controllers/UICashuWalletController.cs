@@ -441,7 +441,7 @@ public class UICashuWalletController(
 
         try
         {
-            var info = await Wallet.Create().WithMint(uri).GetInfo();
+            var info = await Wallet.Create().WithMint(uri.AbsoluteUri.TrimEnd('/')).GetInfo();
 
             var dto = new
             {
