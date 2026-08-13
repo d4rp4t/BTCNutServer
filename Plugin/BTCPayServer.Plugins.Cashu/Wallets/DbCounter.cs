@@ -105,11 +105,14 @@ public class DbCounter : ICounter
         var schema = entityType.GetSchema();
         var tableName = entityType.GetTableName();
 
+        // never move a counter backwards: NUT-13 counter values are single use per keyset, so
+        // rewinding one (a restore grinding fewer values than the live wallet already consumed)
+        // would re-derive outputs the mint has already signed
         string sql = $"""
                           INSERT INTO "{schema}"."{tableName}" ("StoreId", "KeysetId", "Counter")
                           VALUES (@storeId, @keysetId, @counter)
                           ON CONFLICT ("StoreId", "KeysetId")
-                          DO UPDATE SET "Counter" = @counter;
+                          DO UPDATE SET "Counter" = GREATEST("{tableName}"."Counter", @counter);
                       """;
 
         await conn.ExecuteAsync(sql, new
