@@ -12,6 +12,7 @@ using BTCPayServer.Plugins.Cashu.Wallets;
 using DotNut;
 using DotNut.Abstractions;
 using DotNut.Abstractions.Handlers;
+using DotNut.ApiModels;
 using Microsoft.EntityFrameworkCore;
 using NBitcoin;
 
@@ -333,6 +334,7 @@ public class CashuLightningClient(
         await db.SaveChangesAsync(cancellation);
         mintListener.TrackPendingPayment(payment.Id);
 
+        var api = await wallet.GetMintApi(cancellation);
         var keysets = await wallet.GetKeysets(false, cancellation);
         var keysetIds = keysets.Select(k => k.Id).ToHashSet();
         var keysetFees = keysets.ToDictionary(k => k.Id, k => k.InputFee ?? 0UL);
@@ -371,7 +373,8 @@ public class CashuLightningClient(
         }
         await db.SaveChangesAsync(cancellation);
 
-        List<Proof> changeProofs;
+        var meltInputs = sendResponse.Send;
+        var reservedProofs = sendResponse.Send.Select(p => proofMap[p]).ToList();
 
         if (selectedTotal > targetAmount)
         {
@@ -396,34 +399,38 @@ public class CashuLightningClient(
                     db.Proofs.AddRange(StoredProof.FromBatch(split.Keep, storeId, ProofState.Available));
                 await db.SaveChangesAsync(cancellation);
 
-                changeProofs = await handler.Melt(split.Send, cancellation);
-
-                foreach (var stored in toMeltStored)
-                    stored.Status = ProofState.Spent;
-                if (changeProofs.Count > 0)
-                    db.Proofs.AddRange(StoredProof.FromBatch(changeProofs, storeId, ProofState.Available));
-
-                var meltFee = targetAmount
-                              - changeProofs.Aggregate(0UL, (acc, p) => acc + p.Amount)
-                              - quote.Amount;
-                payment.QuoteState = "PAID";
-                payment.PaidAt = DateTimeOffset.UtcNow;
-                payment.FeeAmount = LightMoney.Satoshis((long)meltFee);
-                await db.SaveChangesAsync(cancellation);
-                await tx.CommitAsync(cancellation);
-
-                return new PayResponse
-                {
-                    Result = PayResult.Ok,
-                    Details = new() { FeeAmount = LightMoney.Satoshis((long)meltFee) }
-                };
+                meltInputs = split.Send;
+                reservedProofs = toMeltStored;
             }
         }
 
-        changeProofs = await handler.Melt(sendResponse.Send, cancellation);
+        // NUT-05 melts can settle asynchronously: the mint may answer with PENDING while the
+        // lightning payment is in flight, and may still fail it afterwards. Only the quote state
+        // decides - anything else stays PENDING for MintListener.CheckPendingPaymentsAsync
+        // to reconcile against the mint (it releases or spends the reserved proofs and
+        // restores change from the blank outputs).
+        List<Proof> changeProofs;
+        PostMeltQuoteBolt11Response meltQuote;
+        try
+        {
+            changeProofs = await handler.Melt(meltInputs, cancellation);
+            meltQuote = await api.CheckMeltQuote<PostMeltQuoteBolt11Response>(
+                "bolt11", quote.Quote, cancellation);
+        }
+        catch
+        {
+            // the melt may well have reached the mint - never assume it failed
+            return await CommitUnsettledPaymentAsync(PayResult.Unknown);
+        }
 
-        foreach (var proof in sendResponse.Send)
-            proofMap[proof].Status = ProofState.Spent;
+        if (meltQuote.State != "PAID")
+        {
+            return await CommitUnsettledPaymentAsync(
+                meltQuote.State is "UNPAID" or "EXPIRED" ? PayResult.Error : PayResult.Unknown);
+        }
+
+        foreach (var stored in reservedProofs)
+            stored.Status = ProofState.Spent;
         if (changeProofs.Count > 0)
             db.Proofs.AddRange(StoredProof.FromBatch(changeProofs, storeId, ProofState.Available));
 
@@ -432,6 +439,7 @@ public class CashuLightningClient(
                   - quote.Amount;
         payment.QuoteState = "PAID";
         payment.PaidAt = DateTimeOffset.UtcNow;
+        payment.Preimage = meltQuote.PaymentPreimage ?? string.Empty;
         payment.FeeAmount = LightMoney.Satoshis((long)fee);
         await db.SaveChangesAsync(cancellation);
         await tx.CommitAsync(cancellation);
@@ -441,6 +449,15 @@ public class CashuLightningClient(
             Result = PayResult.Ok,
             Details = new() { FeeAmount = LightMoney.Satoshis((long)fee) }
         };
+
+        // commits the reservation (payment PENDING, inputs Reserved) so the reconciler owns
+        // the outcome. not cancellable - dropping this state would strand the proofs.
+        async Task<PayResponse> CommitUnsettledPaymentAsync(PayResult result)
+        {
+            await db.SaveChangesAsync(CancellationToken.None);
+            await tx.CommitAsync(CancellationToken.None);
+            return new PayResponse { Result = result };
+        }
     }
 
     public Task<PayResponse> Pay(string bolt11, CancellationToken cancellation = default)

@@ -37,7 +37,9 @@ public class CashuLightningConnectionStringHandler(
 
         var secret = kv.GetOrDefault("secret", null);
 
-        Uri uri = new Uri(url);
+        // trailing / is required, otherwise HttpClient's BaseAddress drops the last path segment
+        // when resolving relative endpoints (e.g. https://mint.minibits.cash/Bitcoin + v1/info)
+        Uri uri = new Uri(url.EndsWith('/') ? url : url + "/");
 
         bool allowInsecure = false;
         if (kv.TryGetValue("allowinsecure", out var allowinsecureStr))

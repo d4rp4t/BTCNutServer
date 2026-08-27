@@ -248,9 +248,11 @@ public class UICashuWalletController(
     {
         await using var db = cashuDbContextFactory.CreateContext();
 
+        // the token id alone is not a capability - it leaks through urls, logs and history,
+        // so the row has to belong to the store the caller is authorized for
         var exportedToken = await db
             .ExportedTokens.Include(et => et.Proofs)
-            .SingleOrDefaultAsync(e => e.Id == tokenId);
+            .SingleOrDefaultAsync(e => e.Id == tokenId && e.StoreId == storeId);
 
         if (exportedToken == null)
         {
@@ -265,7 +267,7 @@ public class UICashuWalletController(
             var newProofs = StoredProof
                 .FromBatch(
                     deserialized.Tokens.SelectMany(t => t.Proofs).ToList(),
-                    storeId,
+                    exportedToken.StoreId,
                     ProofState.Exported
                 )
                 .ToList();
@@ -441,7 +443,7 @@ public class UICashuWalletController(
 
         try
         {
-            var info = await Wallet.Create().WithMint(uri).GetInfo();
+            var info = await Wallet.Create().WithMint(uri.AbsoluteUri.TrimEnd('/')).GetInfo();
 
             var dto = new
             {

@@ -10,6 +10,19 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    # TestDbFactory spins up a real database per test class, so the unit job needs postgres too
+    services:
+      postgres:
+        image: postgres:18.1
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +45,8 @@ jobs:
         run: dotnet build BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-restore -c Release -maxcpucount:1 /p:BuildInParallel=false
 
       - name: Run unit tests
+        env:
+          TESTS_POSTGRES: "User ID=postgres;Include Error Detail=true;Host=localhost;Port=5432;Database=btcpayserver"
         run: dotnet test BTCPayserver.Plugins.Cashu.Tests/BTCPayserver.Plugins.Cashu.Tests.csproj --no-build -c Release --filter "Category!=Integration" -v n --collect:"XPlat Code Coverage" --results-directory ./coverage --logger trx
 
       - name: Upload coverage to Codecov

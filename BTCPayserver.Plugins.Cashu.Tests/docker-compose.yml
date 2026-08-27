@@ -28,6 +28,8 @@ services:
       TEST_CDK_MINT_URL: "http://cdk-mint:3338"
       TEST_NUTSHELL_MINT_URL: "http://nutshell-mint:3339"
       TEST_MINT_LND_MACAROON: "/mint_lnd_data/data/chain/bitcoin/regtest/admin.macaroon"
+      # PlaywrightTester defaults to headed, which cannot start in a container without X
+      PLAYWRIGHT_HEADLESS: "true"
     volumes:
       - "mint_lnd_datadir:/mint_lnd_data:ro"
     expose:

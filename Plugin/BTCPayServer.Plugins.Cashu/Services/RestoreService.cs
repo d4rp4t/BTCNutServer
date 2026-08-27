@@ -328,6 +328,19 @@ public class RestoreService : IHostedService
                 };
                 db.CashuWalletConfig.Add(config);
             }
+            else if (config.Verified
+                     && !string.Equals(config.WalletMnemonic?.ToString(), mnemonic.ToString(),
+                         StringComparison.Ordinal))
+            {
+                // last line of defence: replacing the seed of a wallet already in use would orphan
+                // every proof derived from the old one. the restore endpoints gate this, so this
+                // should never be reached.
+                _logger.LogWarning(
+                    "(Cashu) Refused to overwrite the wallet seed of store {StoreId} during restore",
+                    storeId
+                );
+                return;
+            }
             else
             {
                 config.WalletMnemonic = mnemonic;
