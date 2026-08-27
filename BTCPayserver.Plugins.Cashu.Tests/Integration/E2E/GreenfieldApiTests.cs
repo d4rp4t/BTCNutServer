@@ -362,7 +362,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
     [Fact]
     public async Task GetExportedTokens_EmptyList_ReturnsArray()
     {
-        var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
+        var (s, storeId, http) = await SetupAsync(Policies.CanModifyStoreSettings);
         await using var _ = s;
 
         var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens", TestContext.Current.CancellationToken);
@@ -376,7 +376,7 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
     [Fact]
     public async Task GetExportedToken_NotFound_Returns404()
     {
-        var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
+        var (s, storeId, http) = await SetupAsync(Policies.CanModifyStoreSettings);
         await using var _ = s;
 
         var r = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
@@ -384,6 +384,20 @@ public class GreenfieldApiTests(ITestOutputHelper helper) : UnitTestBase(helper)
 
         var json = await ReadJson(r);
         Assert.Equal("token-not-found", json.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task GetExportedTokens_ViewOnlyKey_IsForbidden()
+    {
+        // exported tokens are spendable ecash, so a view-only key must not read them
+        var (s, storeId, http) = await SetupAsync(Policies.CanViewStoreSettings);
+        await using var _ = s;
+
+        var list = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
+
+        var single = await http.GetAsync($"/api/v1/stores/{storeId}/cashu/tokens/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.Forbidden, single.StatusCode);
     }
 
     [Fact]
