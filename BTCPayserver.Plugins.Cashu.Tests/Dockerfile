@@ -37,11 +37,20 @@ COPY BTCPayserver.Plugins.Cashu.Tests/.      BTCPayserver.Plugins.Cashu.Tests/.
 ARG CONFIGURATION_NAME=Release
 RUN cd BTCPayserver.Plugins.Cashu.Tests && dotnet build --configuration ${CONFIGURATION_NAME} -maxcpucount:1 /p:BuildInParallel=false
 
-# Install the Cashu plugin so BTCPay's PluginManager finds it at /root/.btcpayserver/Plugins
+# Install the Cashu plugin so BTCPay's PluginManager finds it at /root/.btcpayserver/Plugins.
+# The manifest is required, not optional: since 2.4.3 PluginManager.IsIncompatible treats a
+# blocklisted identifier with an unreadable version as incompatible, so a plugin installed
+# without its .json is refused and disabled before it ever loads.
 RUN PLUGIN_DIR=/root/.btcpayserver/Plugins/BTCPayServer.Plugins.Cashu && \
     mkdir -p "$PLUGIN_DIR" && \
     cp /source/Plugin/BTCPayServer.Plugins.Cashu/bin/${CONFIGURATION_NAME}/net*/BTCPayServer.Plugins.Cashu.dll \
-       "$PLUGIN_DIR/BTCPayServer.Plugins.Cashu.dll"
+       "$PLUGIN_DIR/BTCPayServer.Plugins.Cashu.dll" && \
+    VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' \
+       /source/Plugin/BTCPayServer.Plugins.Cashu/BTCPayServer.Plugins.Cashu.csproj | head -1) && \
+    test -n "$VERSION" && \
+    printf '{"Identifier":"BTCPayServer.Plugins.Cashu","Name":"BTCNutServer","Version":"%s"}\n' \
+       "$VERSION" > "$PLUGIN_DIR/BTCPayServer.Plugins.Cashu.json" && \
+    cat "$PLUGIN_DIR/BTCPayServer.Plugins.Cashu.json"
 
 WORKDIR /source/BTCPayserver.Plugins.Cashu.Tests
 RUN TFM=$(ls bin/${CONFIGURATION_NAME}/ | head -1) && \
