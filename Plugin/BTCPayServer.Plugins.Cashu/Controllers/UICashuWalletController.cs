@@ -283,6 +283,7 @@ public class UICashuWalletController(
             Unit = exportedToken.Unit,
             MintAddress = exportedToken.Mint,
             Token = exportedToken.SerializedToken,
+            QrFrames = AnimatedQrEncoder.Encode(exportedToken.SerializedToken),
         };
 
         return View("Views/Cashu/ExportedToken.cshtml", model);

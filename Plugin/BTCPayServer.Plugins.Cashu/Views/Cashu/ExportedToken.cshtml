@@ -21,10 +21,13 @@
             <div class="token-content">
                 @* Left: QR Code *@
                 <div class="qr-section">
-                    <div class="qr-wrapper">
-                        <canvas id="qrcode" width="260" height="260"></canvas>
+                    @* every frame is one part of the BC-UR encoded token, rendered server side *@
+                    <div class="qr-wrapper" id="qrcode">
+                        @for (var i = 0; i < Model.QrFrames.Count; i++)
+                        {
+                            <img class="qr-frame @(i == 0 ? "active" : null)" src="@Model.QrFrames[i]" alt="" />
+                        }
                     </div>
-                    <div class="invisible" id="token-dummy-div" data-token="@Model.Token"></div>
                     <p class="qr-hint">Scan with Cashu wallet</p>
                 </div>
 
@@ -149,10 +152,18 @@
         border: 1px solid rgba(0, 0, 0, 0.05);
     }
     
-    #qrcode {
-        display: block;
+    .qr-frame {
+        display: none;
+        width: 260px;
+        height: 260px;
         max-width: 100%;
-        height: auto;
+        /* the frames carry one pixel per QR module, so they have to scale without smoothing */
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+    }
+
+    .qr-frame.active {
+        display: block;
     }
     
     .qr-hint {
@@ -313,7 +324,7 @@
             font-size: 2.5rem;
         }
         
-        #qrcode {
+        .qr-frame {
             width: 240px;
             height: 240px;
         }
@@ -354,4 +365,17 @@
         });
     });
 </script>
-<script type="module" src="~/Resources/js/bundle.js" asp-append-version="true" />
+<script>
+    // the BC-UR parts are encoded server side, all that is left is cycling through them
+    (function () {
+        const frames = document.querySelectorAll('#qrcode .qr-frame');
+        if (frames.length < 2) return;
+
+        let current = 0;
+        setInterval(function () {
+            frames[current].classList.remove('active');
+            current = (current + 1) % frames.length;
+            frames[current].classList.add('active');
+        }, 150);
+    })();
+</script>

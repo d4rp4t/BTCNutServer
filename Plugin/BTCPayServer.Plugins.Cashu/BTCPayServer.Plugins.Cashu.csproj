@@ -64,5 +64,6 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="DotNut.BcUr" Version="1.0.1" />
   </ItemGroup>
 </Project>

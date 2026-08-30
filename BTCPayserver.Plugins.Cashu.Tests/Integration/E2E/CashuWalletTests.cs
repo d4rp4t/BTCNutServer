@@ -133,14 +133,20 @@ public class CashuWalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         await s.Page.AssertNoError();
 
         // Verify exported token page content
-        var qrCanvas = s.Page.Locator("#qrcode");
-        Assert.True(await qrCanvas.IsVisibleAsync(), "QR code should be visible");
+        var qrCode = s.Page.Locator("#qrcode");
+        Assert.True(await qrCode.IsVisibleAsync(), "QR code should be visible");
+
+        // The animated QR is rendered server side, one frame per BC-UR part
+        Assert.True(
+            await s.Page.Locator("#qrcode .qr-frame").CountAsync() > 0,
+            "Animated QR should have at least one frame"
+        );
 
         var copyBtn = s.Page.Locator("#copyTokenBtn");
         Assert.True(await copyBtn.IsVisibleAsync(), "Copy token button should be visible");
 
-        // Token should be stored in hidden div
-        var tokenValue = await s.Page.Locator("#token-dummy-div").GetAttributeAsync("data-token");
+        // The copy button carries the raw token
+        var tokenValue = await copyBtn.GetAttributeAsync("data-clipboard-text");
         helper.WriteLine($"Exported token: {tokenValue?[..Math.Min(60, tokenValue.Length)]}...");
         Assert.NotNull(tokenValue);
         Assert.StartsWith("cashu", tokenValue);
